@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2024-12-19 17:17:21.051220",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "doctype_type",
+  "import_file",
+  "child_table",
+  "sdas"
+ ],
+ "fields": [
+  {
+   "fieldname": "doctype_type",
+   "fieldtype": "Link",
+   "label": "Doctype Type",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "import_file",
+   "fieldtype": "Attach",
+   "label": "Main File"
+  },
+  {
+   "fieldname": "child_table",
+   "fieldtype": "Attach",
+   "label": "Child Table"
+  },
+  {
+   "default": "0",
+   "fieldname": "sdas",
+   "fieldtype": "Check",
+   "label": "sdas"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2024-12-19 19:04:14.793803",
+ "modified_by": "Administrator",
+ "module": "Mubtkir Import Tool",
+ "name": "Mubtkir Tool",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
