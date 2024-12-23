@@ -7,8 +7,7 @@
  "field_order": [
   "reference_doctype",
   "main_file",
-  "child_file",
-  "lorrra"
+  "child_file"
  ],
  "fields": [
   {
@@ -26,17 +25,11 @@
    "fieldname": "child_file",
    "fieldtype": "Attach",
    "label": "Child File"
-  },
-  {
-   "default": "0",
-   "fieldname": "lorrra",
-   "fieldtype": "Check",
-   "label": "Lorrra"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-12-23 15:44:34.909017",
+ "modified": "2024-12-23 17:26:42.813272",
  "modified_by": "Administrator",
  "module": "Mubtkir Import Tool",
  "name": "Mubtkir Tool",
