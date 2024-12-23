@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestMubtkirTool(FrappeTestCase):
+class TestMubtkirImportTool(FrappeTestCase):
 	pass

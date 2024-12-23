@@ -1,13 +1,15 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2024-12-23 15:42:58.158235",
+ "creation": "2024-12-23 18:43:53.024597",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "reference_doctype",
   "main_file",
-  "child_file"
+  "child_file",
+  "column_break_mhov",
+  "import_data"
  ],
  "fields": [
   {
@@ -25,14 +27,24 @@
    "fieldname": "child_file",
    "fieldtype": "Attach",
    "label": "Child File"
+  },
+  {
+   "fieldname": "column_break_mhov",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "import_data",
+   "fieldtype": "Check",
+   "label": "Import Data"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-12-23 17:26:42.813272",
+ "modified": "2024-12-23 19:06:53.271478",
  "modified_by": "Administrator",
  "module": "Mubtkir Import Tool",
- "name": "Mubtkir Tool",
+ "name": "Mubtkir Import Tool",
  "owner": "Administrator",
  "permissions": [
   {
