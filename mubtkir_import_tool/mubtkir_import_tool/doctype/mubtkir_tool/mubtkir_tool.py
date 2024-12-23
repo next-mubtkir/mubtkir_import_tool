@@ -1,7 +1,7 @@
 # Copyright (c) 2024, Nextash and contributors
 # For license information, please see license.txt
-from frappe.utils import flt
 
+from frappe.utils import flt
 import frappe
 from frappe.utils.file_manager import get_file_path
 import pandas as pd
@@ -11,99 +11,102 @@ from frappe.model.document import Document
 
 
 class MubtkirTool(Document):
-	
     def validate(self):
         # Get file paths for the main and child files
-        sales_order_file = get_file_path(self.import_file)
-        frappe.msgprint(f"{sales_order_file}")
-        items_file = get_file_path(self.child_table)
-        frappe.msgprint(f"{items_file}")
+        sales_order_file = get_file_path(self.main_file)
+        items_file = get_file_path(self.child_file)
         
-        # Check if sales order file exists
-        if os.path.exists(sales_order_file):
-            frappe.msgprint(f"Sales order file exists: {sales_order_file}")
-        else:
-            frappe.msgprint(f"Sales order file not found: {sales_order_file}")
-        try:
-            sales_order_data = pd.read_excel(sales_order_file)
-            items_data = pd.read_excel(items_file)
-        except Exception as e:
-            frappe.log_error(f"Failed to load Excel files: {str(e)}", "Sales Order Import Error")
-            return
+        # Check if files exist
+        if not os.path.exists(sales_order_file):
+            frappe.throw(f"Sales order file not found: {sales_order_file}")
+        if not os.path.exists(items_file):
+            frappe.throw(f"Items file not found: {items_file}")
         
-        # Show columns in the loaded files
-        frappe.msgprint(f"Columns in sales order file: {list(sales_order_data.columns)}")
-        frappe.msgprint(f"Columns in items file: {list(items_data.columns)}")
         
+        sales_order_data = pd.read_excel(sales_order_file)
+        items_data = pd.read_excel(items_file)
+        
+        # Validate required columns
+        required_sales_order_columns = {'InvoiceNo', 'ClientBusinessName', 'Date', 'CurrencyCode', 'SummaryTotal'}
+        required_items_columns = {'no', 'item', 'unit_price', 'quantity', 'description'}
+        
+        if not required_sales_order_columns.issubset(sales_order_data.columns):
+            frappe.throw(f"Missing columns in sales order file: {required_sales_order_columns - set(sales_order_data.columns)}")
+        if not required_items_columns.issubset(items_data.columns):
+            frappe.throw(f"Missing columns in items file: {required_items_columns - set(items_data.columns)}")
+        
+        # Process each sales order
         for _, so_row in sales_order_data.iterrows():
-            try:
-                invoice_no = so_row['InvoiceNo']
-                customer_name = so_row['ClientBusinessName']
+            
+            invoice_no = sanitize_data(so_row.get('InvoiceNo'))
+            customer_name = sanitize_data(so_row.get('ClientBusinessName'))
+            order_date = sanitize_data(so_row.get('Date'))
+            currency = sanitize_data(so_row.get('CurrencyCode'))
+            total_amount = flt(sanitize_data(so_row.get('SummaryTotal')), precision=2)
 
-                # Check if customer exists, if not create a new one
-                if not frappe.db.exists("Customer", customer_name):
-                    customer = frappe.new_doc("Customer")
-                    customer.customer_name = customer_name
-                    customer.customer_type = "Company"
-                    customer.customer_group = "Commercial"
-                    customer.territory = "Saudi Arabia"
-                    customer.insert()
+            # Validate mandatory fields
+            if not all([invoice_no, customer_name, order_date, currency]):
+                frappe.log_error(f"Missing data in Sales Order row: {so_row.to_dict()}", "Sales Order Import Error")
+                continue
+
+            # Check if customer exists, create if not
+            if not frappe.db.exists("Customer", customer_name):
+                customer = frappe.new_doc("Customer")
+                customer.customer_name = customer_name
+                customer.customer_type = "Company"
+                customer.customer_group = "Commercial"
+                customer.territory = "Saudi Arabia"
+                customer.insert()
+                frappe.db.commit()
+
+            # Create Sales Order
+            doc = frappe.new_doc(self.reference_doctype)
+            order_date = so_row['Date']
+            if isinstance(order_date, datetime):
+                doc.transaction_date = order_date.strftime("%Y-%m-%d")
+            elif isinstance(order_date, str):
+                doc.transaction_date = datetime.strptime(order_date, "%m/%d/%Y").strftime("%Y-%m-%d")
+            else:
+                frappe.throw(f"Invalid date format for Invoice {invoice_no}: {order_date}")
+
+            doc.customer = customer_name
+            doc.delivery_date = datetime.today().date()
+            doc.currency = currency
+            doc.total = total_amount
+
+            # Fetch related items
+            related_items = items_data[items_data['no'] == invoice_no]
+
+            for _, item_row in related_items.iterrows():
+                item_code = sanitize_data(item_row.get('item'))
+                unit_price = flt(sanitize_data(item_row.get('unit_price')), precision=2)
+                quantity = flt(sanitize_data(item_row.get('quantity')), precision=2)
+                description = sanitize_data(item_row.get('description'))
+                amount = flt(unit_price * quantity, precision=2)
+
+                # Check if item exists, create if not
+                if not frappe.db.exists("Item", item_code):
+                    item = frappe.new_doc("Item")
+                    item.item_code = item_code
+                    item.item_group = "All Item Groups"
+                    item.insert()
                     frappe.db.commit()
-                else:
-                    # If customer exists, fetch the existing customer
-                    customer = frappe.get_doc("Customer", customer_name)
 
-                # Create Sales Order
-                doc = frappe.new_doc(self.doctype_type)
-                doc.transaction_date = so_row['Date']
-                doc.customer = customer_name
-                doc.delivery_date = datetime.today().date()  
-                doc.currency = so_row['CurrencyCode']
-                doc.total=so_row['SummaryTotal']
-                # doc.city = so_row.get('ClientCity')
-                # doc.state = so_row.get('ClientState')
-                # doc.country = so_row.get('ClientCountryCode')
+                # Add item to Sales Order
+                doc.append("items", {
+                    "item_code": item_code,
+                    "description": description,
+                    "rate": unit_price,
+                    "qty": quantity,
+                    "amount": amount
+                })
 
-                # Fetch related items based on invoice number
-                related_items = items_data[items_data['no'] == invoice_no]
+            # Save Sales Order
+            doc.save()
+            frappe.db.commit()
 
-                for _, item_row in related_items.iterrows():
-                    item_code = item_row['item']
-                    item_price = item_row['unit_price']
-                    frappe.msgprint(f"{item_price}")
-                    frappe.msgprint(f"{item_code}")
-                    if not frappe.db.exists("Item", item_code):
-                        item = frappe.new_doc("Item")
-                        item.item_code = item_code
-                        item.item_group = "كل مجموعات الأصناف" 
-                        item.insert()
-                        frappe.db.commit()
-                        ammout=  item_row['unit_price']* item_row['quantity']
-                    doc.append("items", {
-                        "item_code": item_code,
-                        "description": item_row['description'],
-                        "rate": item_row['unit_price'], 
-                        "qty": item_row['quantity'],
-                        "amount": flt(ammout)  
-                    })
-                # frappe.msgprint(f"Sales Order created: {doc.name}")
-                doc.save()
-                # frappe.db.commit()
-                frappe.log_error(f"Sales Order {invoice_no} imported successfully.", "Sales Order Import Success")
-
-            except Exception as e:
-                frappe.log_error(f"Error processing Invoice {so_row['InvoiceNo']}: {str(e)}", "Sales Order Import Error")
-
-            if doc.grand_total:
-                try:
-                    # Calculate payment amount based on the grand total and invoice portion
-                    grand_total = flt(doc.grand_total) if doc.grand_total is not None else 0
-                    invoice_portion = flt(doc.invoice_portion) if doc.invoice_portion is not None else 0
-                    payment_amount = grand_total * invoice_portion / 100
-                    
-                    # Optional: Assign the calculated payment amount to a field (if needed)
-                    doc.payment_amount = payment_amount
-                    doc.save()
-
-                except Exception as calc_error:
-                    frappe.log_error(f"Error calculating payment amount for Sales Order {doc.name}: {str(calc_error)}", "Payment Calculation Error")
+def sanitize_data(value):
+    """Sanitize data to replace `nan` or invalid values with `None`."""
+    if value != value:  # Checks for `nan`
+        return None
+    return value

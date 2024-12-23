@@ -1,42 +1,42 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2024-12-19 17:17:21.051220",
+ "creation": "2024-12-23 15:42:58.158235",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "doctype_type",
-  "import_file",
-  "child_table",
-  "sdas"
+  "reference_doctype",
+  "main_file",
+  "child_file",
+  "lorrra"
  ],
  "fields": [
   {
-   "fieldname": "doctype_type",
+   "fieldname": "reference_doctype",
    "fieldtype": "Link",
-   "label": "Doctype Type",
+   "label": "Reference Doctype",
    "options": "DocType"
   },
   {
-   "fieldname": "import_file",
+   "fieldname": "main_file",
    "fieldtype": "Attach",
    "label": "Main File"
   },
   {
-   "fieldname": "child_table",
+   "fieldname": "child_file",
    "fieldtype": "Attach",
-   "label": "Child Table"
+   "label": "Child File"
   },
   {
    "default": "0",
-   "fieldname": "sdas",
+   "fieldname": "lorrra",
    "fieldtype": "Check",
-   "label": "sdas"
+   "label": "Lorrra"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-12-19 19:04:14.793803",
+ "modified": "2024-12-23 15:44:34.909017",
  "modified_by": "Administrator",
  "module": "Mubtkir Import Tool",
  "name": "Mubtkir Tool",
