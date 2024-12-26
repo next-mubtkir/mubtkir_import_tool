@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "format:MIT-{reference_doctype}-{####}",
  "creation": "2024-12-23 18:43:53.024597",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -41,10 +42,11 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-12-23 19:06:53.271478",
+ "modified": "2024-12-26 09:27:31.075913",
  "modified_by": "Administrator",
  "module": "Mubtkir Import Tool",
  "name": "Mubtkir Import Tool",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
