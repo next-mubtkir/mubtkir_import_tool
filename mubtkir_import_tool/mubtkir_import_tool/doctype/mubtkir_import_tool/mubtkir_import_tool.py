@@ -96,30 +96,29 @@ class MubtkirImportTool(Document):
 
                         doc.save()
                         frappe.db.commit()
-            if self.reference_doctype== "Sales Invoice":
+            if self.reference_doctype == "Sales Invoice":
                 if self.import_data == 1:
                     sales_invoice_file = get_file_path(self.main_file)
                     items_file = get_file_path(self.child_file)
-                    
+
                     if not os.path.exists(sales_invoice_file):
                         frappe.throw(f"Sales invoice file not found: {sales_invoice_file}")
                     if not os.path.exists(items_file):
                         frappe.throw(f"Items file not found: {items_file}")
-                    
-                    
+
                     sales_invoice_data = pd.read_excel(sales_invoice_file)
                     items_data = pd.read_excel(items_file)
-                    
+
                     required_sales_invoice_columns = {'InvoiceNo', 'ClientBusinessName', 'Date', 'CurrencyCode', 'SummaryTotal'}
-                    required_items_columns = {'no', 'item', 'unit_price', 'quantity', 'description'}
-                    
+                    required_items_columns = {'no', 'item', 'unit_price', 'quantity', 'description', 'tax1_name', 'tax2_name', 'tax1_value', 'tax2_value'}
+
                     if not required_sales_invoice_columns.issubset(sales_invoice_data.columns):
                         frappe.throw(f"Missing columns in sales invoice file: {required_sales_invoice_columns - set(sales_invoice_data.columns)}")
                     if not required_items_columns.issubset(items_data.columns):
                         frappe.throw(f"Missing columns in items file: {required_items_columns - set(items_data.columns)}")
-                    
+
                     for _, so_row in sales_invoice_data.iterrows():
-                        
+
                         invoice_no = sanitize_data(so_row.get('InvoiceNo'))
                         customer_name = sanitize_data(so_row.get('ClientBusinessName'))
                         invoice_date = sanitize_data(so_row.get('Date'))
@@ -138,28 +137,34 @@ class MubtkirImportTool(Document):
                             customer.territory = "Saudi Arabia"
                             customer.insert()
                             frappe.db.commit()
+
+                        # Create Sales Invoice Doc
                         doc = frappe.new_doc(self.reference_doctype)
                         order_date = so_row['Date']
                         if isinstance(order_date, datetime):
-                            doc.set_posting_time=1
+                            doc.set_posting_time = 1
                             doc.posting_date = order_date.strftime("%Y-%m-%d")
                         elif isinstance(order_date, str):
-                            doc.set_posting_time=1
+                            doc.set_posting_time = 1
                             doc.posting_date = datetime.strptime(order_date, "%m/%d/%Y").strftime("%Y-%m-%d")
                         else:
                             frappe.throw(f"Invalid date format for Invoice {invoice_no}: {order_date}")
+                        
                         doc.customer = customer_name
                         doc.delivery_date = datetime.today().date()
                         doc.currency = currency
                         doc.total = total_amount
                         related_items = items_data[items_data['no'] == invoice_no]
+
                         for _, item_row in related_items.iterrows():
                             item_code = sanitize_data(item_row.get('item'))
                             unit_price = flt(sanitize_data(item_row.get('unit_price')), precision=2)
                             quantity = flt(sanitize_data(item_row.get('quantity')), precision=2)
                             description = sanitize_data(item_row.get('description'))
                             amount = flt(unit_price * quantity, precision=2)
-
+                            item_tax_template = sanitize_data(item_row.get('tax1_name')) or sanitize_data(item_row.get('tax2_name'))
+                            tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
+                            frappe.throw(item_tax_template)
                             if not frappe.db.exists("Item", item_code):
                                 item = frappe.new_doc("Item")
                                 item.item_code = strip(str(item_code))
@@ -172,11 +177,26 @@ class MubtkirImportTool(Document):
                                 "description": description,
                                 "rate": unit_price,
                                 "qty": quantity,
-                                "amount": amount
+                                "amount": amount,
+                                "item_tax_template":item_tax_template
+                            })
+
+                        # Check if the item_tax_template with name "القيمة المضافة" exists
+                        tax_template = frappe.db.exists("Item Tax Template", "القيمة المضافة")
+                        if not tax_template:
+                            frappe.throw("Item Tax Template with name 'القيمة المضافة' does not exist.")
+
+                        # Fetch taxes from the item_tax_template and append to the sales invoice taxes
+                        tax_template_doc = frappe.get_doc("Item Tax Template", "القيمة المضافة")
+                        for tax in tax_template_doc.taxes:
+                            doc.append("taxes", {
+                                "account_head": tax.tax_type,
+                                "description": "Tax",
+                                "charge_type": "Actual",
+                                "rate": tax.tax_rate,  # Fetch the tax rate from the template
                             })
 
                         doc.save()
-                        doc.set_posting_time=0
                         frappe.db.commit()
 
 def sanitize_data(value):
