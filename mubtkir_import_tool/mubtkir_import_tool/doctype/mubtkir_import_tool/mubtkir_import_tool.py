@@ -162,9 +162,9 @@ class MubtkirImportTool(Document):
                             quantity = flt(sanitize_data(item_row.get('quantity')), precision=2)
                             description = sanitize_data(item_row.get('description'))
                             amount = flt(unit_price * quantity, precision=2)
-                            item_tax_template = sanitize_data(item_row.get('tax1_name')) or sanitize_data(item_row.get('tax2_name'))
+                            item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name') or "Lora"
                             tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
-                            frappe.throw(item_tax_template)
+                            # frappe.throw(item_tax_template)
                             if not frappe.db.exists("Item", item_code):
                                 item = frappe.new_doc("Item")
                                 item.item_code = strip(str(item_code))
@@ -181,18 +181,13 @@ class MubtkirImportTool(Document):
                                 "item_tax_template":item_tax_template
                             })
 
-                        # Check if the item_tax_template with name "القيمة المضافة" exists
-                        tax_template = frappe.db.exists("Item Tax Template", "القيمة المضافة")
-                        if not tax_template:
-                            frappe.throw("Item Tax Template with name 'القيمة المضافة' does not exist.")
-
                         # Fetch taxes from the item_tax_template and append to the sales invoice taxes
-                        tax_template_doc = frappe.get_doc("Item Tax Template", "القيمة المضافة")
+                        tax_template_doc = frappe.get_doc("Item Tax Template")
                         for tax in tax_template_doc.taxes:
                             doc.append("taxes", {
                                 "account_head": tax.tax_type,
                                 "description": "Tax",
-                                "charge_type": "Actual",
+                                "charge_type": "On Net Total",
                                 "rate": tax.tax_rate,  # Fetch the tax rate from the template
                             })
 
