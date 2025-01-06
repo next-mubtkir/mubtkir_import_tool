@@ -78,6 +78,7 @@ class MubtkirImportTool(Document):
                             quantity = flt(sanitize_data(item_row.get('quantity')), precision=2)
                             description = sanitize_data(item_row.get('description'))
                             amount = flt(unit_price * quantity, precision=2)
+                            tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
                             item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
                             tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
 
@@ -98,8 +99,9 @@ class MubtkirImportTool(Document):
                             doc.append("taxes", {
                                 "account_head": self.import_account,
                                 "description": "Tax",
-                                "charge_type": "On Net Total",
-                                "rate": tax_rate,  # Fetch the tax rate from the template
+                                "charge_type": "Actual",
+                                "rate": tax_rate,
+                                "tax_amount":tax_amount
                             })
 
                         doc.save()
@@ -170,6 +172,7 @@ class MubtkirImportTool(Document):
                             description = sanitize_data(item_row.get('description'))
                             amount = flt(unit_price * quantity, precision=2)
                             item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
+                            tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
                             tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
                             # frappe.throw(item_tax_template)
                             if not frappe.db.exists("Item", item_code):
@@ -191,8 +194,9 @@ class MubtkirImportTool(Document):
                             doc.append("taxes", {
                                 "account_head": self.import_account,
                                 "description": "Tax",
-                                "charge_type": "Acctual",
+                                "charge_type": "Actual",
                                 "rate": tax_rate,
+                                "tax_amount":tax_amount
                             })
 
                         doc.save()
