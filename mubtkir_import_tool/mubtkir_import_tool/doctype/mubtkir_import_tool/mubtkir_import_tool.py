@@ -197,7 +197,7 @@ class MubtkirImportTool(Document):
 
                         doc.save()
                         frappe.db.commit()
-            if self.reference_doctype == "Purchase Order":
+            if self.reference_doctype == "Purchase Invoice":
                 if self.import_data == 1:
                     sales_invoice_file = get_file_path(self.main_file)
                     items_file = get_file_path(self.child_file)
@@ -256,8 +256,11 @@ class MubtkirImportTool(Document):
                             unit_price = flt(sanitize_data(item_row.get('unit_price')), precision=2) or 0.0
                             quantity = flt(sanitize_data(item_row.get('quantity')), precision=2) or 0.0
                             description = sanitize_data(item_row.get('description'))
-                            item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
+                            # item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
                             tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
+                            tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
+                            frappe.msgprint(f"{tax_rate}")
+                            frappe.msgprint(f"{tax_amount}")
                             amount = flt(unit_price * quantity, precision=2)
 
                             if not frappe.db.exists("Item", item_code):
@@ -280,7 +283,8 @@ class MubtkirImportTool(Document):
                                 "account_head": self.import_account,
                                 "description": "Tax",
                                 "charge_type": "Actual",
-                                "rate": tax_rate,
+                                "rate": flt(tax_rate),
+                                "tax_amount":tax_amount
                             })
                             doc.save()
                         frappe.db.commit()
