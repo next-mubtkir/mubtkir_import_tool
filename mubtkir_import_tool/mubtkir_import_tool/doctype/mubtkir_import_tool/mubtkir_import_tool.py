@@ -28,7 +28,7 @@ class MubtkirImportTool(Document):
                     items_data = pd.read_excel(items_file)
                     
                     required_sales_order_columns = {'InvoiceNo', 'ClientBusinessName', 'Date', 'CurrencyCode', 'SummaryTotal'}
-                    required_items_columns = {'no', 'item', 'unit_price', 'quantity', 'description'}
+                    required_items_columns = {'no', 'item', 'unit_price', 'quantity', 'description', 'tax1_name', 'tax2_name', 'tax1_value', 'tax2_value'}
                     
                     if not required_sales_order_columns.issubset(sales_order_data.columns):
                         frappe.throw(f"Missing columns in sales order file: {required_sales_order_columns - set(sales_order_data.columns)}")
@@ -78,6 +78,8 @@ class MubtkirImportTool(Document):
                             quantity = flt(sanitize_data(item_row.get('quantity')), precision=2)
                             description = sanitize_data(item_row.get('description'))
                             amount = flt(unit_price * quantity, precision=2)
+                            item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
+                            tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
 
                             if not frappe.db.exists("Item", item_code):
                                 item = frappe.new_doc("Item")
@@ -92,6 +94,12 @@ class MubtkirImportTool(Document):
                                 "rate": unit_price,
                                 "qty": quantity,
                                 "amount": amount
+                            })
+                            doc.append("taxes", {
+                                "account_head": self.import_account,
+                                "description": "Tax",
+                                "charge_type": "On Net Total",
+                                "rate": tax_rate,  # Fetch the tax rate from the template
                             })
 
                         doc.save()
@@ -138,7 +146,6 @@ class MubtkirImportTool(Document):
                             customer.insert()
                             frappe.db.commit()
 
-                        # Create Sales Invoice Doc
                         doc = frappe.new_doc(self.reference_doctype)
                         order_date = so_row['Date']
                         if isinstance(order_date, datetime):
@@ -162,7 +169,7 @@ class MubtkirImportTool(Document):
                             quantity = flt(sanitize_data(item_row.get('quantity')), precision=2)
                             description = sanitize_data(item_row.get('description'))
                             amount = flt(unit_price * quantity, precision=2)
-                            item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name') or "Lora"
+                            item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
                             tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
                             # frappe.throw(item_tax_template)
                             if not frappe.db.exists("Item", item_code):
@@ -178,20 +185,104 @@ class MubtkirImportTool(Document):
                                 "rate": unit_price,
                                 "qty": quantity,
                                 "amount": amount,
-                                "item_tax_template":item_tax_template
+                                # "item_tax_template":item_tax_template
                             })
 
-                        # Fetch taxes from the item_tax_template and append to the sales invoice taxes
-                        tax_template_doc = frappe.get_doc("Item Tax Template")
-                        for tax in tax_template_doc.taxes:
                             doc.append("taxes", {
-                                "account_head": tax.tax_type,
+                                "account_head": self.import_account,
                                 "description": "Tax",
-                                "charge_type": "On Net Total",
-                                "rate": tax.tax_rate,  # Fetch the tax rate from the template
+                                "charge_type": "Acctual",
+                                "rate": tax_rate,
                             })
 
                         doc.save()
+                        frappe.db.commit()
+            if self.reference_doctype == "Purchase Order":
+                if self.import_data == 1:
+                    sales_invoice_file = get_file_path(self.main_file)
+                    items_file = get_file_path(self.child_file)
+
+                    if not os.path.exists(sales_invoice_file):
+                        frappe.throw(f"Sales invoice file not found: {sales_invoice_file}")
+                    if not os.path.exists(items_file):
+                        frappe.throw(f"Items file not found: {items_file}")
+
+                    purchase_invoice_data = pd.read_excel(sales_invoice_file)
+                    items_data = pd.read_excel(items_file)
+
+                    required_sales_invoice_columns = {'PurchaseOrderNo', 'SupplierBusinessName', 'Date', 'CurrencyCode', 'SummaryTotal'}
+                    required_items_columns = {'no', 'item', 'unit_price', 'quantity', 'description', 'tax1_name', 'tax2_name', 'tax1_value', 'tax2_value'}
+
+                    # if not required_sales_invoice_columns.issubset(purchase_invoice_data.columns):
+                    #     frappe.throw(f"Missing columns in sales invoice file: {required_sales_invoice_columns - set(purchase_invoice_data.columns)}")
+                    # if not required_items_columns.issubset(items_data.columns):
+                    #     frappe.throw(f"Missing columns in items file: {required_items_columns - set(items_data.columns)}")
+
+                    for _, po_row in purchase_invoice_data.iterrows():
+
+                        p_invoice_no = str(sanitize_data(po_row.get('PurchaseOrderNo'))).strip()
+                        # p_invoice_no = sanitize_data(po_row.get('PurchaseOrderNo'))
+                        supplier_name = sanitize_data(po_row.get('SupplierBusinessName'))
+                        invoice_date = sanitize_data(po_row.get('Date'))
+                        currency = sanitize_data(po_row.get('CurrencyCode'))
+                        total_amount = flt(sanitize_data(po_row.get('SummaryTotal')), precision=2)
+
+                        # if not all([p_invoice_no, supplier_name, invoice_date, currency]):
+                        #     frappe.log_error(f"Missing data in Sales invoice row: {po_row.to_dict()}", "Sales invoice Import Error")
+                        #     continue
+
+                        if not frappe.db.exists("Supplier", supplier_name):
+                            supplier = frappe.new_doc("Supplier")
+                            supplier.supplier_name = supplier_name
+                            supplier.supplier_type = "Company"
+                            supplier.supplier_group = "All Supplier Groups"
+                            supplier.country = "Saudi Arabia"
+                            supplier.insert()
+                            frappe.db.commit()
+
+                        doc = frappe.new_doc(self.reference_doctype)
+                        order_date = po_row['Date']
+                        # if isinstance(order_date, datetime):
+                            # doc.set_posting_time = 1
+                        doc.schedule_date = order_date.strftime("%Y-%m-%d")
+                        doc.supplier =supplier_name
+                        doc.transaction_date = order_date.strftime("%Y-%m-%d")
+                        doc.currency = currency
+                        doc.total = sanitize_data(total_amount)
+                        related_items = items_data[items_data['no'].astype(str) == str(p_invoice_no).strip()]
+                        # frappe.msgprint(f"{related_items}")
+                        for _, item_row in related_items.iterrows():
+                            item_code = sanitize_data(strip(str(item_row.get('item'))))
+                            unit_price = flt(sanitize_data(item_row.get('unit_price')), precision=2) or 0.0
+                            quantity = flt(sanitize_data(item_row.get('quantity')), precision=2) or 0.0
+                            description = sanitize_data(item_row.get('description'))
+                            item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
+                            tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
+                            amount = flt(unit_price * quantity, precision=2)
+
+                            if not frappe.db.exists("Item", item_code):
+                                item = frappe.new_doc("Item")
+                                item.item_code = strip(str(item_code))
+                                item.item_group = "All Item Groups"
+                                item.description=description
+                                item.insert()
+                                frappe.db.commit()
+                            doc.append("items", {
+                                "item_code": item_code,
+                                "schedule_date": doc.schedule_date,
+                                "description": description,
+                                "rate": unit_price,
+                                "qty": quantity,
+                                "amount": amount,
+                                # "item_tax_template": item_tax_template or ""
+                            })
+                            doc.append("taxes", {
+                                "account_head": self.import_account,
+                                "description": "Tax",
+                                "charge_type": "Actual",
+                                "rate": tax_rate,
+                            })
+                            doc.save()
                         frappe.db.commit()
 
 def sanitize_data(value):
