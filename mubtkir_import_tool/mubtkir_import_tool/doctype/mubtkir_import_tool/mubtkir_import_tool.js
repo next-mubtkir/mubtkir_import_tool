@@ -11,6 +11,7 @@ frappe.ui.form.on("Mubtkir Import Tool", {
                 }
             };
         });
+        frm.set_df_property('import_account', 'hidden', true);
     },
 	refresh(frm) {
         frm.get_field("main_file").df.options = {
@@ -23,8 +24,13 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 				allowed_file_types: [".xls", ".xlsx"],
 			},
 		};
+        if (!frm.is_new()){
+            frm.set_df_property('import_account', 'hidden', false);
+
+        }
 	},
 	reference_doctype: function (frm) {
+        if (!frm.is_new()){
         frm.set_df_property('import_account', 'reqd', true);
         frm.set_df_property('import_account', 'hidden', false);
 
@@ -37,5 +43,6 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 				}
             };
         });
+    }
     },
 });

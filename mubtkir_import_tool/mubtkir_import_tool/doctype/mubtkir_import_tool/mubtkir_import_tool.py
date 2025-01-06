@@ -283,7 +283,7 @@ class MubtkirImportTool(Document):
                                 "account_head": self.import_account,
                                 "description": "Tax",
                                 "charge_type": "Actual",
-                                "rate": flt(tax_rate),
+                                "rate": tax_rate,
                                 "tax_amount":tax_amount
                             })
                             doc.save()
