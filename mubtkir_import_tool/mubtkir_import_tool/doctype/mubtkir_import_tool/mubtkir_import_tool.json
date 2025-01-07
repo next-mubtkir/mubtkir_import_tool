@@ -43,14 +43,13 @@
   {
    "fieldname": "import_account",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Import Account",
    "options": "Account"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-01-05 22:09:57.184339",
+ "modified": "2025-01-07 16:54:48.588126",
  "modified_by": "Administrator",
  "module": "Mubtkir Import Tool",
  "name": "Mubtkir Import Tool",
