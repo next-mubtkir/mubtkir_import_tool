@@ -1,7 +1,7 @@
 # Copyright (c) 2024, Nextash and contributors
 # For license information, please see license.txt
 
-from frappe.utils import flt,strip
+from frappe.utils import flt,strip, today
 import frappe
 from frappe.utils.file_manager import get_file_path
 import pandas as pd
@@ -42,6 +42,7 @@ class MubtkirImportTool(Document):
                         order_date = sanitize_data(so_row.get('Date'))
                         currency = sanitize_data(so_row.get('CurrencyCode'))
                         total_amount = flt(sanitize_data(so_row.get('SummaryTotal')), precision=2)
+                        now_datetime=today()
 
                         if not all([invoice_no, customer_name, order_date, currency]):
                             frappe.log_error(f"Missing data in Sales Order row: {so_row.to_dict()}", "Sales Order Import Error")
@@ -55,7 +56,20 @@ class MubtkirImportTool(Document):
                             customer.territory = "Saudi Arabia"
                             customer.insert()
                             frappe.db.commit()
+                        if isinstance(order_date, str):
+                            order_date = datetime.strptime(order_date, "%m/%d/%Y").strftime("%Y-%m-%d")
 
+                        # Check if Sales Order already exists with Customer Name and Date
+                        existing_sales_order = frappe.db.exists(self.reference_doctype, {
+                            "customer": customer_name,
+                            "transaction_date": order_date,
+                            "delivery_date":now_datetime
+                        })
+
+                        if existing_sales_order:
+                            frappe.msgprint(f"Sales Order with Customer: {customer_name} and Date: {order_date} already exists{now_datetime}. Skipping creation.", "Sales Order Import")
+                            # frappe.log(f"Sales Order with Customer: {customer_name} and Date: {order_date} already exists. Skipping creation.", "Sales Order Import")
+                            continue
                         doc = frappe.new_doc(self.reference_doctype)
                         order_date = so_row['Date']
                         if isinstance(order_date, datetime):
