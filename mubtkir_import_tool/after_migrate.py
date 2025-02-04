@@ -10,7 +10,7 @@ def after_migrate():
     
     # Run the bench command in the correct directory
     subprocess.run(
-        ["bench", "pip", "install", "-r", f"apps/your_app_name/requirements.txt"],
+        ["bench", "pip", "install", "-r", f"apps/mubtkir_import_tool/requirements.txt"],
         cwd=bench_dir,  # Set the working directory
         check=True
     )
