@@ -91,6 +91,9 @@ app_license = "mit"
 # before_uninstall = "mubtkir_import_tool.uninstall.before_uninstall"
 # after_uninstall = "mubtkir_import_tool.uninstall.after_uninstall"
 
+
+after_migrate = "mubtkir_import_tool.after_migrate.after_migrate"
+
 # Integration Setup
 # ------------------
 # To set up dependencies/integrations with other apps
