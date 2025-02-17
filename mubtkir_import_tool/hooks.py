@@ -82,7 +82,7 @@ app_license = "mit"
 # Installation
 # ------------
 
-# before_install = "mubtkir_import_tool.install.before_install"
+before_install = "mubtkir_import_tool.after_migrate.after_migrate"
 # after_install = "mubtkir_import_tool.install.after_install"
 
 # Uninstallation
