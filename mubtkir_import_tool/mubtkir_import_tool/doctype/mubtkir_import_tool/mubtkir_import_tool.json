@@ -7,7 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "reference_doctype",
-  "import_account",
+  "item_tax_template",
   "main_file",
   "child_file",
   "column_break_mhov",
@@ -41,15 +41,15 @@
    "label": "Import Data"
   },
   {
-   "fieldname": "import_account",
+   "fieldname": "item_tax_template",
    "fieldtype": "Link",
-   "label": "Import Account",
-   "options": "Account"
+   "label": "Item Tax Template",
+   "options": "Item Tax Template"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-01-07 16:54:48.588126",
+ "modified": "2025-02-18 13:56:59.450646",
  "modified_by": "Administrator",
  "module": "Mubtkir Import Tool",
  "name": "Mubtkir Import Tool",

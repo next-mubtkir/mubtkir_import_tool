@@ -22,15 +22,15 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 				allowed_file_types: [".xls", ".xlsx"],
 			},
 		};
-        frm.set_df_property('import_account', 'reqd', true);
-        frm.set_query('import_account', function () {
-            const default_company = frappe.defaults.get_default('company');
-            return {
-                filters: {
-                    account_type: ['in', ['Tax', 'Chargeable', 'Expense Account']],
-                    company: default_company
-                }
-            };
-        });
+        // frm.set_df_property('import_account', 'reqd', true);
+        // frm.set_query('import_account', function () {
+        //     const default_company = frappe.defaults.get_default('company');
+        //     return {
+        //         filters: {
+        //             account_type: ['in', ['Tax', 'Chargeable', 'Expense Account']],
+        //             company: default_company
+        //         }
+        //     };
+        // });
 	},
 });

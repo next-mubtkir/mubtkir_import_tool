@@ -92,9 +92,9 @@ class MubtkirImportTool(Document):
                             quantity = flt(sanitize_data(item_row.get('quantity')), precision=2)
                             description = sanitize_data(item_row.get('description'))
                             amount = flt(unit_price * quantity, precision=2)
-                            tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
-                            item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
-                            tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
+                            # tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
+                            # item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
+                            # tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
 
                             if not frappe.db.exists("Item", item_code):
                                 item = frappe.new_doc("Item")
@@ -108,15 +108,18 @@ class MubtkirImportTool(Document):
                                 "description": description,
                                 "rate": unit_price,
                                 "qty": quantity,
-                                "amount": amount
+                                "amount": amount,
+                                "item_tax_template":self.item_tax_template
                             })
-                            doc.append("taxes", {
-                                "account_head": self.import_account,
-                                "description": "Tax",
-                                "charge_type": "Actual",
-                                "rate": tax_rate,
-                                "tax_amount":tax_amount
-                            })
+                        tax_rate,tax_type = frappe.db.get_value('Item Tax Template Detail',{"parent":self.item_tax_template}, ['tax_rate','tax_type'],)
+                        tax_amount = total_amount * (tax_rate / 100)
+                        doc.append("taxes", {
+                            "account_head": tax_type,
+                            "description": "Tax",
+                            "charge_type": "On Net Total",
+                            "rate": tax_rate,
+                            "tax_amount":tax_amount
+                        })
 
                         doc.save()
                         frappe.db.commit()
@@ -186,8 +189,8 @@ class MubtkirImportTool(Document):
                             description = sanitize_data(item_row.get('description'))
                             amount = flt(unit_price * quantity, precision=2)
                             item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
-                            tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
-                            tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
+                            # tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
+                            # tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
                             # frappe.throw(item_tax_template)
                             if not frappe.db.exists("Item", item_code):
                                 item = frappe.new_doc("Item")
@@ -202,16 +205,17 @@ class MubtkirImportTool(Document):
                                 "rate": unit_price,
                                 "qty": quantity,
                                 "amount": amount,
-                                # "item_tax_template":item_tax_template
+                                "item_tax_template":self.item_tax_template
                             })
-
-                            doc.append("taxes", {
-                                "account_head": self.import_account,
-                                "description": "Tax",
-                                "charge_type": "Actual",
-                                "rate": tax_rate,
-                                "tax_amount":tax_amount
-                            })
+                        tax_rate,tax_type = frappe.db.get_value('Item Tax Template Detail',{"parent":self.item_tax_template}, ['tax_rate','tax_type'],)
+                        tax_amount = total_amount * (tax_rate / 100)
+                        doc.append("taxes", {
+                            "account_head": tax_type,
+                            "description": "Tax",
+                            "charge_type": "On Net Total",
+                            "rate": tax_rate,
+                            "tax_amount":tax_amount
+                        })
 
                         doc.save()
                         frappe.db.commit()
@@ -272,17 +276,14 @@ class MubtkirImportTool(Document):
                         doc.currency = currency
                         doc.total = sanitize_data(total_amount)
                         related_items = items_data[items_data['no'].astype(str) == str(p_invoice_no).strip()]
-                        # frappe.msgprint(f"{related_items}")
                         for _, item_row in related_items.iterrows():
                             item_code = sanitize_data(strip(str(item_row.get('item'))))
                             unit_price = flt(sanitize_data(item_row.get('unit_price')), precision=2) or 0.0
                             quantity = flt(sanitize_data(item_row.get('quantity')), precision=2) or 0.0
                             description = sanitize_data(item_row.get('description'))
                             # item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
-                            tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
-                            tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
-                            # frappe.msgprint(f"{tax_rate}")
-                            # frappe.msgprint(f"{tax_amount}")
+                            # tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
+                            # tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
                             amount = flt(unit_price * quantity, precision=2)
 
                             if not frappe.db.exists("Item", item_code):
@@ -299,16 +300,18 @@ class MubtkirImportTool(Document):
                                 "rate": unit_price,
                                 "qty": quantity,
                                 "amount": amount,
-                                # "item_tax_template": item_tax_template or ""
+                                "item_tax_template":self.item_tax_template
                             })
-                            doc.append("taxes", {
-                                "account_head": self.import_account,
-                                "description": "Tax",
-                                "charge_type": "Actual",
-                                "rate": tax_rate,
-                                "tax_amount":tax_amount
-                            })
-                            doc.save()
+                        tax_rate,tax_type = frappe.db.get_value('Item Tax Template Detail',{"parent":self.item_tax_template}, ['tax_rate','tax_type'],)
+                        tax_amount = total_amount * (tax_rate / 100)
+                        doc.append("taxes", {
+                            "account_head": tax_type,
+                            "description": "Tax",
+                            "charge_type": "On Net Total",
+                            "rate": tax_rate,
+                            "tax_amount":tax_amount
+                        })
+                        doc.save()
                         frappe.db.commit()
             if self.reference_doctype == "Purchase Order":
                 if self.import_data == 1:
