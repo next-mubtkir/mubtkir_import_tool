@@ -10,6 +10,22 @@ frappe.ui.form.on("Mubtkir Import Tool", {
                 }
             };
         });
+        frm.set_df_property("sales_taxes_and_charges_template", "hidden",true);
+        frm.set_df_property("purchase_taxes_and_charges", "hidden",true);
+    },
+    reference_doctype(frm) {
+    const ref = frm.doc.reference_doctype;
+
+    const show_sales = ["Sales Invoice", "Sales Order"].includes(ref);
+    const show_purchase = ref === "Purchase Invoice";
+
+    // Sales template field
+    frm.set_df_property("sales_taxes_and_charges_template", "hidden", !show_sales);
+    frm.set_df_property("sales_taxes_and_charges_template", "reqd", show_sales);
+
+    // Purchase template field
+    frm.set_df_property("purchase_taxes_and_charges", "hidden", !show_purchase);
+    frm.set_df_property("purchase_taxes_and_charges", "reqd", show_purchase);
     },
 	refresh(frm) {
         frm.get_field("main_file").df.options = {
@@ -22,15 +38,5 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 				allowed_file_types: [".xls", ".xlsx"],
 			},
 		};
-        // frm.set_df_property('import_account', 'reqd', true);
-        // frm.set_query('import_account', function () {
-        //     const default_company = frappe.defaults.get_default('company');
-        //     return {
-        //         filters: {
-        //             account_type: ['in', ['Tax', 'Chargeable', 'Expense Account']],
-        //             company: default_company
-        //         }
-        //     };
-        // });
 	},
 });

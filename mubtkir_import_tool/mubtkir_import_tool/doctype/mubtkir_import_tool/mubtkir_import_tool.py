@@ -27,7 +27,7 @@ class MubtkirImportTool(Document):
                     sales_order_data = pd.read_excel(sales_order_file)
                     items_data = pd.read_excel(items_file)
                     
-                    required_sales_order_columns = {'InvoiceNo', 'ClientBusinessName', 'Date', 'CurrencyCode', 'SummaryTotal'}
+                    required_sales_order_columns = {'InvoiceNo', 'ClientBusinessName', 'Date', 'CurrencyCode', 'SummaryTotal','SummaryDiscount'}
                     required_items_columns = {'no', 'item', 'unit_price', 'quantity', 'description', 'tax1_name', 'tax2_name', 'tax1_value', 'tax2_value'}
                     
                     if not required_sales_order_columns.issubset(sales_order_data.columns):
@@ -42,7 +42,7 @@ class MubtkirImportTool(Document):
                         order_date = sanitize_data(so_row.get('Date'))
                         currency = sanitize_data(so_row.get('CurrencyCode'))
                         total_amount = flt(sanitize_data(so_row.get('SummaryTotal')), precision=2)
-                        # now_datetime=today()
+                        total_dicount = flt(sanitize_data(so_row.get('SummaryDiscount')), precision=2)
 
                         if not all([invoice_no, customer_name, order_date, currency]):
                             frappe.log_error(f"Missing data in Sales Order row: {so_row.to_dict()}", "Sales Order Import Error")
@@ -56,20 +56,6 @@ class MubtkirImportTool(Document):
                             customer.territory = "Saudi Arabia"
                             customer.insert()
                             frappe.db.commit()
-                        # if isinstance(order_date, str):
-                        #     order_date = datetime.strptime(order_date, "%m/%d/%Y").strftime("%Y-%m-%d")
-
-                        # # Check if Sales Order already exists with Customer Name and Date
-                        # existing_sales_order = frappe.db.exists(self.reference_doctype, {
-                        #     "customer": customer_name,
-                        #     "transaction_date": order_date,
-                        #     "delivery_date":now_datetime
-                        # })
-
-                        # if existing_sales_order:
-                        #     frappe.msgprint(f"Sales Order with Customer: {customer_name} and Date: {order_date} already exists{now_datetime}. Skipping creation.", "Sales Order Import")
-                        #     # frappe.log(f"Sales Order with Customer: {customer_name} and Date: {order_date} already exists. Skipping creation.", "Sales Order Import")
-                        #     continue
                         doc = frappe.new_doc(self.reference_doctype)
                         order_date = so_row['Date']
                         if isinstance(order_date, datetime):
@@ -83,6 +69,7 @@ class MubtkirImportTool(Document):
                         doc.delivery_date = datetime.today().date()
                         doc.currency = currency
                         doc.total = total_amount
+                        
 
                         related_items = items_data[items_data['no'] == invoice_no]
 
@@ -108,19 +95,21 @@ class MubtkirImportTool(Document):
                                 "description": description,
                                 "rate": unit_price,
                                 "qty": quantity,
-                                "amount": amount,
-                                "item_tax_template":self.item_tax_template
+                                "amount": amount
                             })
-                        tax_rate,tax_type = frappe.db.get_value('Item Tax Template Detail',{"parent":self.item_tax_template}, ['tax_rate','tax_type'],)
+                        doc.taxes_and_charges = self.sales_taxes_and_charges_template
+                        tax_rate,account_head = frappe.db.get_value('Sales Taxes and Charges',{"parent":self.sales_taxes_and_charges_template}, ['rate','account_head'],)
                         tax_amount = total_amount * (tax_rate / 100)
                         doc.append("taxes", {
-                            "account_head": tax_type,
+                            "account_head": account_head,
                             "description": "Tax",
                             "charge_type": "On Net Total",
                             "rate": tax_rate,
                             "tax_amount":tax_amount
                         })
-
+                        if total_dicount:
+                            doc.apply_discount_on= "Grand Total"
+                            doc.discount_amount = total_dicount
                         doc.save()
                         frappe.db.commit()
             if self.reference_doctype == "Sales Invoice":
@@ -136,7 +125,7 @@ class MubtkirImportTool(Document):
                     sales_invoice_data = pd.read_excel(sales_invoice_file)
                     items_data = pd.read_excel(items_file)
 
-                    required_sales_invoice_columns = {'InvoiceNo', 'ClientBusinessName', 'Date', 'CurrencyCode', 'SummaryTotal'}
+                    required_sales_invoice_columns = {'InvoiceNo', 'ClientBusinessName', 'Date', 'CurrencyCode', 'SummaryTotal','SummaryDiscount'}
                     required_items_columns = {'no', 'item', 'unit_price', 'quantity', 'description', 'tax1_name', 'tax2_name', 'tax1_value', 'tax2_value'}
 
                     if not required_sales_invoice_columns.issubset(sales_invoice_data.columns):
@@ -151,6 +140,8 @@ class MubtkirImportTool(Document):
                         invoice_date = sanitize_data(so_row.get('Date'))
                         currency = sanitize_data(so_row.get('CurrencyCode'))
                         total_amount = flt(sanitize_data(so_row.get('SummaryTotal')), precision=2)
+                        total_dicount = flt(sanitize_data(so_row.get('SummaryDiscount')), precision=2)
+                        # frappe.throw(f"{total_dicount}")
 
                         if not all([invoice_no, customer_name, invoice_date, currency]):
                             frappe.log_error(f"Missing data in Sales invoice row: {so_row.to_dict()}", "Sales invoice Import Error")
@@ -188,7 +179,6 @@ class MubtkirImportTool(Document):
                             quantity = flt(sanitize_data(item_row.get('quantity')), precision=2)
                             description = sanitize_data(item_row.get('description'))
                             amount = flt(unit_price * quantity, precision=2)
-                            item_tax_template = item_row.get('tax1_name') or item_row.get('tax2_name')
                             # tax_amount = flt(sanitize_data(item_row.get('tax1_amount')), precision=2) or flt(sanitize_data(item_row.get('tax2_amount')), precision=2)
                             # tax_rate = flt(sanitize_data(item_row.get('tax1_value')), precision=2) or flt(sanitize_data(item_row.get('tax2_value')), precision=2)
                             # frappe.throw(item_tax_template)
@@ -204,19 +194,21 @@ class MubtkirImportTool(Document):
                                 "description": description,
                                 "rate": unit_price,
                                 "qty": quantity,
-                                "amount": amount,
-                                "item_tax_template":self.item_tax_template
+                                "amount": amount
                             })
-                        tax_rate,tax_type = frappe.db.get_value('Item Tax Template Detail',{"parent":self.item_tax_template}, ['tax_rate','tax_type'],)
+                        doc.taxes_and_charges = self.sales_taxes_and_charges_template
+                        tax_rate,account_head = frappe.db.get_value('Sales Taxes and Charges',{"parent":self.sales_taxes_and_charges_template}, ['rate','account_head'],)
                         tax_amount = total_amount * (tax_rate / 100)
                         doc.append("taxes", {
-                            "account_head": tax_type,
+                            "account_head": account_head,
                             "description": "Tax",
                             "charge_type": "On Net Total",
                             "rate": tax_rate,
                             "tax_amount":tax_amount
                         })
-
+                        if total_dicount:
+                            doc.apply_discount_on= "Grand Total"
+                            doc.discount_amount = total_dicount
                         doc.save()
                         frappe.db.commit()
             if self.reference_doctype == "Purchase Invoice":

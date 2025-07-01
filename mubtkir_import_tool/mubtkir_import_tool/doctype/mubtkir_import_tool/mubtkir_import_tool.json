@@ -7,7 +7,8 @@
  "engine": "InnoDB",
  "field_order": [
   "reference_doctype",
-  "item_tax_template",
+  "sales_taxes_and_charges_template",
+  "purchase_taxes_and_charges",
   "main_file",
   "child_file",
   "column_break_mhov",
@@ -41,15 +42,21 @@
    "label": "Import Data"
   },
   {
-   "fieldname": "item_tax_template",
+   "fieldname": "sales_taxes_and_charges_template",
    "fieldtype": "Link",
-   "label": "Item Tax Template",
-   "options": "Item Tax Template"
+   "label": "Sales Taxes and Charges Template",
+   "options": "Sales Taxes and Charges Template"
+  },
+  {
+   "fieldname": "purchase_taxes_and_charges",
+   "fieldtype": "Link",
+   "label": "Purchase Taxes and Charges",
+   "options": "Purchase Taxes and Charges Template"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-18 13:56:59.450646",
+ "modified": "2025-06-30 15:29:19.960389",
  "modified_by": "Administrator",
  "module": "Mubtkir Import Tool",
  "name": "Mubtkir Import Tool",
@@ -69,6 +76,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []
