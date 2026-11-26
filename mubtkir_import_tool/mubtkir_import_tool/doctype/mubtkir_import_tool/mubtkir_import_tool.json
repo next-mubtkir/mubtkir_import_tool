@@ -22,6 +22,7 @@
   "submit_invoices",
   "update_stock",
   "skip_existing",
+  "stop_on_stage_error",
   "max_records_per_run",
   "auto_delete_files_after_days",
   "section_single_files",
@@ -167,6 +168,13 @@
    "label": "Skip Existing Records"
   },
   {
+   "default": "1",
+   "description": "Stop before moving to the next stage if any record fails in the current stage.",
+   "fieldname": "stop_on_stage_error",
+   "fieldtype": "Check",
+   "label": "Stop Next Stages If Errors Occur"
+  },
+  {
    "default": "0",
    "description": "Limit how many invoices to import per run (0 = import all). With Skip Existing enabled, the next run continues automatically.",
    "fieldname": "max_records_per_run",
@@ -291,7 +299,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Draft\nValidating\nValidated\nValidation Failed\nImporting\nCompleted\nCompleted with Errors\nFailed",
+   "options": "Draft\nValidating\nValidated\nValidation Failed\nImporting\nCompleted\nCompleted with Errors\nStopped on Stage Error\nFailed",
    "read_only": 1
   },
   {

@@ -123,6 +123,39 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 					}
 				);
 			}).addClass("btn-primary");
+
+			if (frm.doc.import_mode === "Full Migration") {
+				const stage_buttons = [
+					["Item", __("1. Import Products")],
+					["Customer", __("2. Import Customers")],
+					["Supplier", __("3. Import Suppliers")],
+					["Purchase Invoice", __("4. Import Purchase Invoices")],
+					["Purchase Return", __("4c. Import Purchase Returns")],
+					["Sales Invoice", __("5. Import Sales Invoices")],
+					["Sales Return", __("5c. Import Sales Returns")],
+				];
+				stage_buttons.forEach(([stage_key, label]) => {
+					frm.add_custom_button(
+						label,
+						() => {
+							frappe.call({
+								method: "start_import",
+								doc: frm.doc,
+								args: { target_stage: stage_key },
+								freeze: true,
+								callback() {
+									frm.reload_doc();
+									frappe.show_alert({
+										message: __("Import started in the background; progress will update automatically."),
+										indicator: "blue",
+									});
+								},
+							});
+						},
+						__("Run Stage")
+					);
+				});
+			}
 		}
 
 		if (!frm.is_new() && frm.doc.import_logs && frm.doc.import_logs.length > 0) {

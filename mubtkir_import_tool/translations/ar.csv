@@ -148,3 +148,15 @@ Sales Result,نتيجة المبيعات
 Purchase Returns Result,نتيجة مرتجعات المشتريات
 Sales Returns Result,نتيجة مرتجعات المبيعات
 Export Logs,تصدير سجل الأخطاء
+Stop Next Stages If Errors Occur,إيقاف المراحل التالية عند وجود أخطاء
+Stop before moving to the next stage if any record fails in the current stage.,إيقاف الانتقال للمرحلة التالية إذا فشل أي سجل في المرحلة الحالية.
+Stopped on Stage Error,توقف لوجود أخطاء في المرحلة
+No file attached for stage: {0},لا يوجد ملف مرفق لمرحلة: {0}
+Run Stage,تشغيل مرحلة محددة
+1. Import Products,1. استيراد المنتجات
+2. Import Customers,2. استيراد العملاء
+3. Import Suppliers,3. استيراد الموردين
+4. Import Purchase Invoices,4. استيراد فواتير المشتريات
+4c. Import Purchase Returns,4ج. استيراد مرتجعات المشتريات
+5. Import Sales Invoices,5. استيراد فواتير المبيعات
+5c. Import Sales Returns,5ج. استيراد مرتجعات المبيعات
