@@ -22,6 +22,7 @@
   "submit_invoices",
   "update_stock",
   "skip_existing",
+  "max_records_per_run",
   "auto_delete_files_after_days",
   "section_single_files",
   "main_file",
@@ -155,6 +156,13 @@
    "fieldname": "skip_existing",
    "fieldtype": "Check",
    "label": "Skip Existing Records"
+  },
+  {
+   "default": "0",
+   "description": "Limit how many invoices to import per run (0 = import all). With Skip Existing enabled, the next run continues automatically.",
+   "fieldname": "max_records_per_run",
+   "fieldtype": "Int",
+   "label": "Max Invoices per Run (0 = All)"
   },
   {
    "default": "7",

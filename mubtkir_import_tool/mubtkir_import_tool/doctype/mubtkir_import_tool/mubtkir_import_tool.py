@@ -225,6 +225,7 @@ class MubtkirImportTool(Document):
 						force_return=force_ret,
 						default_item_group=self.default_item_group,
 						default_supplier_group=self.default_supplier_group,
+						max_records=int(self.max_records_per_run or 0),
 						progress_cb=publish_progress,
 					)
 				elif stage in ("Sales Invoice", "Sales Return"):
@@ -241,6 +242,7 @@ class MubtkirImportTool(Document):
 						force_return=force_ret,
 						default_item_group=self.default_item_group,
 						default_customer_group=self.default_customer_group,
+						max_records=int(self.max_records_per_run or 0),
 						progress_cb=publish_progress,
 					)
 				else:

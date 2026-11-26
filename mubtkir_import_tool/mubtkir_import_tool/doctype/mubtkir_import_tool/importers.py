@@ -39,23 +39,71 @@ def _get_naming_series_options(target_doctype: str) -> list[str]:
 	return [opt.strip() for opt in field.options.splitlines() if opt.strip()]
 
 
+def _ensure_year_naming_series(target_doctype: str, years: set[str], is_return: bool = False) -> list[str]:
+	"""
+	Ensure year-based naming_series options exist on target_doctype automatically
+	so multi-year imports never require manual naming_series setup.
+	"""
+	options = _get_naming_series_options(target_doctype)
+	if any(".YYYY." in opt for opt in options):
+		return options
+
+	prefix = "ACC-SINV" if target_doctype == "Sales Invoice" else "ACC-PINV"
+	if is_return:
+		prefix = f"{prefix}-RET"
+
+	missing_series = []
+	for yr in sorted(y for y in years if y and len(y) == 4 and y.isdigit()):
+		if not any(yr in opt for opt in options):
+			missing_series.append(f"{prefix}-.{yr}.-")
+
+	if not missing_series:
+		return options
+
+	new_options = options + missing_series
+	options_str = "\n".join(new_options)
+
+	ps_name = frappe.db.get_value(
+		"Property Setter",
+		{"doc_type": target_doctype, "field_name": "naming_series", "property": "options"},
+		"name",
+	)
+	if ps_name:
+		frappe.db.set_value("Property Setter", ps_name, "value", options_str)
+	else:
+		frappe.get_doc({
+			"doctype": "Property Setter",
+			"doctype_or_field": "DocField",
+			"doc_type": target_doctype,
+			"field_name": "naming_series",
+			"property": "options",
+			"property_type": "Text",
+			"value": options_str,
+		}).insert(ignore_permissions=True)
+
+	frappe.clear_cache(doctype=target_doctype)
+	return new_options
+
+
 def _pick_naming_series_by_year(options: list[str], posting_date: str, is_return: bool = False) -> str | None:
 	"""Pick a configured naming_series matching the invoice's posting_date year (e.g. 2025 vs 2026)."""
 	if not options or not posting_date or len(posting_date) < 4:
 		return None
 	year = posting_date[:4]
 	year_matches = [opt for opt in options if year in opt]
-	if not year_matches:
-		return None
-	if is_return:
-		ret_matches = [opt for opt in year_matches if any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
-		if ret_matches:
-			return ret_matches[0]
-	else:
-		non_ret = [opt for opt in year_matches if not any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
-		if non_ret:
-			return non_ret[0]
-	return year_matches[0]
+	if year_matches:
+		if is_return:
+			ret_matches = [opt for opt in year_matches if any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
+			if ret_matches:
+				return ret_matches[0]
+		else:
+			non_ret = [opt for opt in year_matches if not any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
+			if non_ret:
+				return non_ret[0]
+		return year_matches[0]
+	# Fallback to dynamic .YYYY. series if configured
+	yyyy_matches = [opt for opt in options if ".YYYY." in opt]
+	return yyyy_matches[0] if yyyy_matches else None
 
 
 def _get_tax_template_rows(template_doctype: str, template_name: str) -> list[dict]:
@@ -365,6 +413,7 @@ def import_invoices(
 	default_item_group: str | None = None,
 	default_customer_group: str | None = None,
 	default_supplier_group: str | None = None,
+	max_records: int = 0,
 	progress_cb=None,
 ) -> dict:
 	"""
@@ -427,7 +476,15 @@ def import_invoices(
 	party_group = default_customer_group if party_type == "Customer" else default_supplier_group
 	default_uom = frappe.db.get_single_value("Stock Settings", "stock_uom") or "Nos"
 	template_rows = _get_tax_template_rows(template_doctype, tax_template or "")
-	naming_series_options = _get_naming_series_options(target_doctype)
+	invoice_years = {
+		d[:4]
+		for r in main_rows
+		for d in [parse_date_str(r.get("Date"))]
+		if d and len(d) >= 4
+	}
+	naming_series_options = _ensure_year_naming_series(
+		target_doctype, invoice_years, is_return=force_return
+	)
 
 	imported = 0
 	skipped = 0
@@ -436,6 +493,8 @@ def import_invoices(
 	total = len(main_rows)
 
 	for idx, inv_row in enumerate(main_rows, start=1):
+		if max_records > 0 and imported >= max_records:
+			break
 		inv_no = inv_row.get(no_col, "")
 		if skip_existing and inv_no in existing_map:
 			skipped += 1
