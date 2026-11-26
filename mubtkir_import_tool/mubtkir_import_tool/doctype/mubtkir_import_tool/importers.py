@@ -94,7 +94,11 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 			doc.item_name = name
 			doc.description = row.get("Description") or name
 			doc.standard_rate = flt(row.get("UnitPrice"), 4)
-			doc.valuation_rate = flt(row.get("BuyPrice"), 4)
+			doc.valuation_rate = (
+				flt(row.get("AverageCost"), 4)
+				or flt(row.get("BuyPrice"), 4)
+				or flt(row.get("UnitPrice"), 4)
+			)
 			doc.is_stock_item = 1 if row.get("TrackStock") in ("1", "True", "true", "") else 0
 
 			barcode = (row.get("Barcode") or "").strip()
@@ -455,22 +459,6 @@ def import_invoices(
 			total_daftra_tax = 0.0
 
 			for item_row in rel_items:
-				item_label = (item_row.get("item") or "").strip()
-				item_code = item_lookup.get(item_label)
-				if not item_code:
-					new_code = item_label[:140]
-					if not frappe.db.exists("Item", new_code):
-						new_item = frappe.new_doc("Item")
-						new_item.item_code = new_code
-						new_item.item_name = new_code
-						new_item.item_group = default_item_group
-						new_item.stock_uom = default_uom
-						new_item.description = item_row.get("description") or new_code
-						new_item.insert(ignore_permissions=True)
-					item_code = new_code
-					item_lookup[item_label] = item_code
-					item_lookup[new_code] = item_code
-
 				qty = abs(flt(item_row.get("quantity"), 6))
 				unit_price = abs(flt(item_row.get("unit_price"), 6))
 				sub_nt = abs(flt(item_row.get("subtotal_without_tax"), 6))
@@ -483,15 +471,36 @@ def import_invoices(
 				_is_inclusive = detect_row_tax_inclusive(unit_price, qty, sub_nt, sub, tax_mode)
 				net_rate = flt(sub_nt / qty, 9) if qty else 0.0
 
+				item_label = (item_row.get("item") or "").strip()
+				item_code = item_lookup.get(item_label)
+				if not item_code:
+					new_code = item_label[:140]
+					if not frappe.db.exists("Item", new_code):
+						new_item = frappe.new_doc("Item")
+						new_item.item_code = new_code
+						new_item.item_name = new_code
+						new_item.item_group = default_item_group
+						new_item.stock_uom = default_uom
+						new_item.standard_rate = flt(net_rate, 4)
+						new_item.valuation_rate = flt(net_rate, 4)
+						new_item.description = item_row.get("description") or new_code
+						new_item.insert(ignore_permissions=True)
+					item_code = new_code
+					item_lookup[item_label] = item_code
+					item_lookup[new_code] = item_code
+
 				row_tax_rates.add(flt(t1_val + t2_val, 4))
 				total_daftra_tax += (t1_amt + t2_amt)
 
-				doc.append("items", {
+				item_dict = {
 					"item_code": item_code,
 					"description": item_row.get("description") or item_label,
 					"qty": -qty if is_ret else qty,
 					"rate": net_rate,
-				})
+				}
+				if target_doctype == "Sales Invoice" and update_stock:
+					item_dict["allow_zero_valuation_rate"] = 1
+				doc.append("items", item_dict)
 
 			total_daftra_tax = flt(total_daftra_tax, 2)
 			if total_daftra_tax > 0:
