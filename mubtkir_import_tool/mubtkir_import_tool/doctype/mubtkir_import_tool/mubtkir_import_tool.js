@@ -124,6 +124,32 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 				);
 			}).addClass("btn-primary");
 		}
+
+		if (!frm.is_new() && frm.doc.import_logs && frm.doc.import_logs.length > 0) {
+			frm.add_custom_button(__("Export Logs"), () => {
+				const headers = ["Stage", "Row", "Daftra Ref", "Severity", "Message"];
+				const escape_csv = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+				const lines = [headers.map(escape_csv).join(",")];
+				frm.doc.import_logs.forEach((row) => {
+					lines.push(
+						[row.stage, row.row_number, row.reference_no, row.severity, row.message]
+							.map(escape_csv)
+							.join(",")
+					);
+				});
+				const blob = new Blob(["\ufeff" + lines.join("\n")], {
+					type: "text/csv;charset=utf-8;",
+				});
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement("a");
+				a.href = url;
+				a.download = `${frm.doc.name}_import_logs.csv`;
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+				URL.revokeObjectURL(url);
+			});
+		}
 	},
 
 	import_mode(frm) {

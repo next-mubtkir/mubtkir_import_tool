@@ -130,18 +130,53 @@ def _pick_naming_series_by_year(options: list[str], posting_date: str, is_return
 	return yyyy_matches[0] if yyyy_matches else None
 
 
+def _ensure_fiscal_years(company: str, years: set[str]):
+	"""Ensure active Fiscal Year records exist for all invoice years in the dataset."""
+	for yr in sorted(y for y in years if y and len(y) == 4 and y.isdigit()):
+		start_date = f"{yr}-01-01"
+		end_date = f"{yr}-12-31"
+		exists = frappe.db.sql(
+			"""
+			SELECT fy.name FROM `tabFiscal Year` fy
+			LEFT JOIN `tabFiscal Year Company` fyc ON fyc.parent = fy.name
+			WHERE fy.disabled = 0
+			  AND fy.year_start_date <= %s AND fy.year_end_date >= %s
+			  AND (fyc.company = %s OR fyc.company IS NULL)
+			LIMIT 1
+			""",
+			(start_date, end_date, company),
+		)
+		if exists:
+			continue
+		if frappe.db.exists("Fiscal Year", yr):
+			fy = frappe.get_doc("Fiscal Year", yr)
+			fy.disabled = 0
+			if not any(c.company == company for c in (fy.companies or [])):
+				fy.append("companies", {"company": company})
+			fy.save(ignore_permissions=True)
+		else:
+			fy = frappe.new_doc("Fiscal Year")
+			fy.year = yr
+			fy.year_start_date = start_date
+			fy.year_end_date = end_date
+			fy.append("companies", {"company": company})
+			fy.insert(ignore_permissions=True)
+
+
 def _get_tax_template_rows(template_doctype: str, template_name: str) -> list[dict]:
 	if not template_name:
 		return []
-	child_doctype = (
-		"Sales Taxes and Charges"
-		if template_doctype == "Sales Taxes and Charges Template"
-		else "Purchase Taxes and Charges"
-	)
+	if template_doctype == "Sales Taxes and Charges Template":
+		return frappe.get_all(
+			"Sales Taxes and Charges",
+			filters={"parent": template_name},
+			fields=["charge_type", "account_head", "description", "rate"],
+			order_by="idx asc",
+		)
 	return frappe.get_all(
-		child_doctype,
+		"Purchase Taxes and Charges",
 		filters={"parent": template_name},
-		fields=["charge_type", "account_head", "description", "rate"],
+		fields=["charge_type", "account_head", "description", "rate", "category", "add_deduct_tax"],
 		order_by="idx asc",
 	)
 
@@ -149,7 +184,12 @@ def _get_tax_template_rows(template_doctype: str, template_name: str) -> list[di
 def import_items(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, item_group: str | None = None, progress_cb=None) -> dict:
 	"""Import Daftra Products CSV/ZIP into ERPNext Item DocType."""
 	_mh, rows, _ch, _cr = load_daftra_source("Item", main_file_path, child_file_path)
-	existing_codes = set(frappe.get_all("Item", pluck="name"))
+	existing_map = {
+		r.item_code: r.name
+		for r in frappe.get_all("Item", fields=["name", "item_code"])
+		if r.item_code
+	}
+	existing_names = {r.item_name.strip(): r.name for r in frappe.get_all("Item", fields=["name", "item_name"]) if r.item_name}
 	default_group = item_group or _resolve_default_link(
 		"Item Group", "Stock Settings", "item_group", ("All Item Groups", "جميع مجموعات الأصناف", "Products", "المنتجات")
 	)
@@ -177,7 +217,8 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 			})
 			continue
 
-		if code in existing_codes and skip_existing:
+		existing_docname = existing_map.get(code) or existing_names.get(name)
+		if existing_docname and skip_existing:
 			skipped += 1
 			if progress_cb and idx % 25 == 0:
 				progress_cb(idx, total)
@@ -186,8 +227,8 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 		sp = f"imp_item_{idx}"
 		frappe.db.savepoint(sp)
 		try:
-			if code in existing_codes:
-				doc = frappe.get_doc("Item", code)
+			if existing_docname:
+				doc = frappe.get_doc("Item", existing_docname)
 			else:
 				doc = frappe.new_doc("Item")
 				doc.item_code = code
@@ -210,7 +251,8 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 				doc.append("barcodes", {"barcode": barcode})
 
 			doc.save(ignore_permissions=True)
-			existing_codes.add(code)
+			existing_map[code] = doc.name
+			existing_names[name] = doc.name
 			imported += 1
 		except Exception as exc:
 			_safe_rollback(sp)
@@ -526,6 +568,7 @@ def import_invoices(
 	naming_series_options = _ensure_year_naming_series(
 		target_doctype, invoice_years, is_return=force_return
 	)
+	_ensure_fiscal_years(company, invoice_years)
 
 	imported = 0
 	skipped = 0
@@ -566,8 +609,13 @@ def import_invoices(
 
 		sp = f"imp_inv_{idx}"
 		frappe.db.savepoint(sp)
+		newly_created_items: list[tuple[str, str]] = []
+		newly_created_party: str | None = None
 		try:
+			was_existing_party = party_name in existing_parties
 			party = _ensure_party(party_type, party_name, existing_parties, inv_row.get(country_col, ""), party_group=party_group)
+			if not was_existing_party:
+				newly_created_party = party_name
 
 			doc = frappe.new_doc(target_doctype)
 			doc.company = company
@@ -641,6 +689,7 @@ def import_invoices(
 					item_code = new_code
 					item_lookup[item_label] = item_code
 					item_lookup[new_code] = item_code
+					newly_created_items.append((item_label, new_code))
 
 				row_tax_rates.add(flt(t1_val + t2_val, 4))
 				total_daftra_tax += (t1_amt + t2_amt)
@@ -657,29 +706,38 @@ def import_invoices(
 
 			total_daftra_tax = flt(total_daftra_tax, 2)
 			if total_daftra_tax > 0:
+				is_purchase = target_doctype == "Purchase Invoice"
 				if (
 					len(row_tax_rates) == 1
 					and len(template_rows) == 1
 					and abs(flt(template_rows[0]["rate"], 4) - next(iter(row_tax_rates))) < 0.01
 				):
 					doc.taxes_and_charges = tax_template
-					doc.append("taxes", {
+					tax_row = {
 						"charge_type": "On Net Total",
 						"account_head": template_rows[0]["account_head"],
 						"description": template_rows[0]["description"] or "VAT",
 						"rate": template_rows[0]["rate"],
 						"included_in_print_rate": 0,
-					})
+					}
+					if is_purchase:
+						tax_row["category"] = template_rows[0].get("category") or "Total"
+						tax_row["add_deduct_tax"] = template_rows[0].get("add_deduct_tax") or "Add"
+					doc.append("taxes", tax_row)
 				else:
 					if not template_rows:
 						frappe.throw(_("Please select a {0} to provide the tax account.").format(template_doctype))
-					doc.append("taxes", {
+					tax_row = {
 						"charge_type": "Actual",
 						"account_head": template_rows[0]["account_head"],
 						"description": template_rows[0]["description"] or "VAT",
 						"tax_amount": -total_daftra_tax if is_ret else total_daftra_tax,
 						"included_in_print_rate": 0,
-					})
+					}
+					if is_purchase:
+						tax_row["category"] = template_rows[0].get("category") or "Total"
+						tax_row["add_deduct_tax"] = template_rows[0].get("add_deduct_tax") or "Add"
+					doc.append("taxes", tax_row)
 
 			if summary_discount != 0:
 				disc = abs(summary_discount)
@@ -702,6 +760,12 @@ def import_invoices(
 			imported += 1
 		except Exception as exc:
 			_safe_rollback(sp)
+			# Evict any items/party created inside the rolled-back savepoint so they are not poisoned in cache
+			for lbl, ncode in newly_created_items:
+				item_lookup.pop(lbl, None)
+				item_lookup.pop(ncode, None)
+			if newly_created_party:
+				existing_parties.discard(newly_created_party)
 			failed += 1
 			logs.append({
 				"stage": _(stage),

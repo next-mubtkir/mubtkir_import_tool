@@ -16,7 +16,7 @@ from .importers import (
 	import_suppliers,
 )
 
-MAX_LOG_ROWS = 500
+MAX_LOG_ROWS = 5000
 
 
 class MubtkirImportTool(Document):
