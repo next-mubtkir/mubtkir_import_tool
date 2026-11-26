@@ -14,6 +14,14 @@ from .daftra_parser import (
 )
 
 
+def _safe_rollback(sp: str):
+	"""Rollback to savepoint, falling back to full rollback if an external hook cleared the savepoint."""
+	try:
+		frappe.db.rollback(save_point=sp)
+	except Exception:
+		frappe.db.rollback()
+
+
 def _resolve_default_link(
 	doctype: str,
 	settings_doctype: str,
@@ -205,7 +213,7 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 			existing_codes.add(code)
 			imported += 1
 		except Exception as exc:
-			frappe.db.rollback(save_point=sp)
+			_safe_rollback(sp)
 			failed += 1
 			logs.append({
 				"stage": _("Item"),
@@ -288,7 +296,7 @@ def import_customers(main_file_path: str, child_file_path: str | None = None, sk
 			existing_names.add(doc.name)
 			imported += 1
 		except Exception as exc:
-			frappe.db.rollback(save_point=sp)
+			_safe_rollback(sp)
 			failed += 1
 			logs.append({
 				"stage": _("Customer"),
@@ -369,7 +377,7 @@ def import_suppliers(main_file_path: str, child_file_path: str | None = None, sk
 			existing_names.add(doc.name)
 			imported += 1
 		except Exception as exc:
-			frappe.db.rollback(save_point=sp)
+			_safe_rollback(sp)
 			failed += 1
 			logs.append({
 				"stage": _("Supplier"),
@@ -698,7 +706,7 @@ def import_invoices(
 			existing_map[inv_no] = doc.name
 			imported += 1
 		except Exception as exc:
-			frappe.db.rollback(save_point=sp)
+			_safe_rollback(sp)
 			failed += 1
 			logs.append({
 				"stage": _(stage),

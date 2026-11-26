@@ -139,3 +139,9 @@ Default Customer Group,مجموعة العملاء الافتراضية
 Default Supplier Group,مجموعة الموردين الافتراضية
 "Max Invoices per Run (0 = All)","الحد الأقصى للفواتير في كل تشغيل (0 = الكل)"
 "Limit how many invoices to import per run (0 = import all). With Skip Existing enabled, the next run continues automatically.","تحديد عدد الفواتير المستوردة في كل دفعة (0 = استيراد الكل). مع تفعيل تخطي السجلات الموجودة، يكمل التشغيل التالي من حيث توقف."
+Stage Results,نتائج المراحل
+Products Result,نتيجة المنتجات
+Customers Result,نتيجة العملاء
+Suppliers Result,نتيجة الموردين
+Purchase Result,نتيجة المشتريات
+Sales Result,نتيجة المبيعات

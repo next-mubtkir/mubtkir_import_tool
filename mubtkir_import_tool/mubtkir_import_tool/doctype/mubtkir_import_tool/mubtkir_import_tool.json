@@ -50,6 +50,13 @@
   "imported_records",
   "skipped_records",
   "failed_records",
+  "section_stage_results",
+  "items_result",
+  "customers_result",
+  "suppliers_result",
+  "column_break_stage_results",
+  "purchase_result",
+  "sales_result",
   "section_summary",
   "validation_summary",
   "section_logs",
@@ -322,6 +329,45 @@
    "fieldname": "failed_records",
    "fieldtype": "Int",
    "label": "Failed Records",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_stage_results",
+   "fieldtype": "Section Break",
+   "label": "Stage Results"
+  },
+  {
+   "fieldname": "items_result",
+   "fieldtype": "Data",
+   "label": "Products Result",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customers_result",
+   "fieldtype": "Data",
+   "label": "Customers Result",
+   "read_only": 1
+  },
+  {
+   "fieldname": "suppliers_result",
+   "fieldtype": "Data",
+   "label": "Suppliers Result",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_stage_results",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "purchase_result",
+   "fieldtype": "Data",
+   "label": "Purchase Result",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_result",
+   "fieldtype": "Data",
+   "label": "Sales Result",
    "read_only": 1
   },
   {

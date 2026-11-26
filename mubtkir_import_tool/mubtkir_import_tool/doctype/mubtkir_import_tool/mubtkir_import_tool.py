@@ -148,6 +148,8 @@ class MubtkirImportTool(Document):
 		self.imported_records = 0
 		self.skipped_records = 0
 		self.failed_records = 0
+		for f in ("items_result", "customers_result", "suppliers_result", "purchase_result", "sales_result"):
+			self.set(f, "")
 		self.set("import_logs", [])
 		self.save()
 
@@ -165,6 +167,21 @@ class MubtkirImportTool(Document):
 
 	def run_import_job(self):
 		"""Background worker method executing stages in strict dependency order."""
+		prev_in_import = getattr(frappe.flags, "in_import", False)
+		prev_mute_emails = getattr(frappe.flags, "mute_emails", False)
+		frappe.flags.in_import = True
+		frappe.flags.mute_emails = True
+
+		stage_field_map = {
+			"Item": "items_result",
+			"Customer": "customers_result",
+			"Supplier": "suppliers_result",
+			"Purchase Invoice": "purchase_result",
+			"Purchase Return": "purchase_result",
+			"Sales Invoice": "sales_result",
+			"Sales Return": "sales_result",
+		}
+
 		try:
 			stages = self._get_configured_stages()
 			total_imported = 0
@@ -253,18 +270,25 @@ class MubtkirImportTool(Document):
 				total_skipped += res["skipped"]
 				total_failed += res["failed"]
 				all_logs.extend(res["logs"])
-				summary_lines.append(
-					_("{0}: imported={1}, skipped={2}, failed={3}").format(
-						_(stage), res["imported"], res["skipped"], res["failed"]
-					)
+				stage_line = _("{0}: imported={1}, skipped={2}, failed={3}").format(
+					_(stage), res["imported"], res["skipped"], res["failed"]
 				)
+				summary_lines.append(stage_line)
+
+				# Persist per-stage progress immediately so completed stages are visible even if a later stage fails
+				self.reload()
+				result_field = stage_field_map.get(stage)
+				if result_field:
+					self.set(result_field, stage_line)
+				self.total_records = total_records
+				self.imported_records = total_imported
+				self.skipped_records = total_skipped
+				self.failed_records = total_failed
+				self.validation_summary = "\n".join(summary_lines)
+				self.save(ignore_permissions=True)
+				frappe.db.commit()
 
 			self.reload()
-			self.total_records = total_records
-			self.imported_records = total_imported
-			self.skipped_records = total_skipped
-			self.failed_records = total_failed
-			self.validation_summary = "\n".join(summary_lines)
 			self.set("import_logs", [])
 			self._append_logs(all_logs)
 			self.status = "Completed with Errors" if total_failed > 0 else "Completed"
@@ -278,6 +302,8 @@ class MubtkirImportTool(Document):
 			self.save(ignore_permissions=True)
 			frappe.db.commit()
 		finally:
+			frappe.flags.in_import = prev_in_import
+			frappe.flags.mute_emails = prev_mute_emails
 			frappe.publish_realtime(
 				"mubtkir_import_progress",
 				{"docname": self.name, "done": True},
