@@ -300,21 +300,24 @@
    "in_list_view": 1,
    "label": "Status",
    "options": "Draft\nValidating\nValidated\nValidation Failed\nImporting\nCompleted\nCompleted with Errors\nStopped on Stage Error\nFailed",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "default": "0",
    "fieldname": "total_records",
    "fieldtype": "Int",
    "label": "Total Records",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "default": "0",
    "fieldname": "valid_records",
    "fieldtype": "Int",
    "label": "Valid Records",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "column_break_status",
@@ -325,21 +328,24 @@
    "fieldname": "imported_records",
    "fieldtype": "Int",
    "label": "Imported Records",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "default": "0",
    "fieldname": "skipped_records",
    "fieldtype": "Int",
    "label": "Skipped Records",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "default": "0",
    "fieldname": "failed_records",
    "fieldtype": "Int",
    "label": "Failed Records",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "section_stage_results",
@@ -350,19 +356,22 @@
    "fieldname": "items_result",
    "fieldtype": "Data",
    "label": "Products Result",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "customers_result",
    "fieldtype": "Data",
    "label": "Customers Result",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "suppliers_result",
    "fieldtype": "Data",
    "label": "Suppliers Result",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "column_break_stage_results",
@@ -372,25 +381,29 @@
    "fieldname": "purchase_result",
    "fieldtype": "Data",
    "label": "Purchase Result",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "purchase_returns_result",
    "fieldtype": "Data",
    "label": "Purchase Returns Result",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "sales_result",
    "fieldtype": "Data",
    "label": "Sales Result",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "sales_returns_result",
    "fieldtype": "Data",
    "label": "Sales Returns Result",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "section_summary",
@@ -401,7 +414,8 @@
    "fieldname": "validation_summary",
    "fieldtype": "Small Text",
    "label": "Summary",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "section_logs",
@@ -413,7 +427,8 @@
    "fieldtype": "Table",
    "label": "Validation & Import Logs",
    "options": "Mubtkir Import Log",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   }
  ],
  "index_web_pages_for_search": 1,
