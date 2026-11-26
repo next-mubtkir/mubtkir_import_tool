@@ -434,11 +434,22 @@ def validate_stage_data(
 	for item_row in child_rows:
 		items_by_no.setdefault(item_row.get("no", ""), []).append(item_row)
 
+	# Build party_no -> party_name fallback map for invoices where BusinessName is blank
+	party_no_col = "ClientNo" if stage in ("Sales Invoice", "Sales Return") else "SupplierNo"
+	party_by_no: dict[str, str] = {}
+	for r in main_rows:
+		pno = r.get(party_no_col, "")
+		pname = r.get(party_col, "")
+		if pno and pname:
+			party_by_no[pno] = pname
+
 	header_nos = set()
 	valid = 0
 	for idx, inv_row in enumerate(main_rows, start=2):
 		inv_no = inv_row.get(no_col, "")
-		party_name = inv_row.get(party_col, "")
+		if inv_no:
+			header_nos.add(inv_no)
+		party_name = inv_row.get(party_col, "") or party_by_no.get(inv_row.get(party_no_col, ""), "")
 		parsed_date = parse_date_str(inv_row.get("Date"))
 		currency = inv_row.get("CurrencyCode", "")
 		summary_total = flt(inv_row.get("SummaryTotal"), 2)
@@ -464,7 +475,6 @@ def validate_stage_data(
 			})
 			continue
 
-		header_nos.add(inv_no)
 		rel_items = items_by_no.get(inv_no, [])
 		if not rel_items:
 			logs.append({

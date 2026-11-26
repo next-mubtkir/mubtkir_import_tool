@@ -369,6 +369,14 @@ def import_invoices(
 	for item_row in child_rows:
 		items_by_no.setdefault(item_row.get("no", ""), []).append(item_row)
 
+	party_no_col = "ClientNo" if target_doctype == "Sales Invoice" else "SupplierNo"
+	party_by_no: dict[str, str] = {}
+	for r in main_rows:
+		pno = r.get(party_no_col, "")
+		pname = r.get(party_col, "")
+		if pno and pname:
+			party_by_no[pno] = pname
+
 	has_daftra_col = frappe.db.has_column(target_doctype, "custom_daftra_no")
 	existing_map: dict[str, str] = {}
 	if has_daftra_col:
@@ -407,7 +415,7 @@ def import_invoices(
 				progress_cb(idx, total)
 			continue
 
-		party_name = inv_row.get(party_col, "")
+		party_name = inv_row.get(party_col, "") or party_by_no.get(inv_row.get(party_no_col, ""), "")
 		posting_date = parse_date_str(inv_row.get("Date"))
 		currency = inv_row.get("CurrencyCode", "")
 		summary_total = flt(inv_row.get("SummaryTotal"), 2)
