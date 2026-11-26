@@ -160,3 +160,8 @@ Run Stage,تشغيل مرحلة محددة
 4c. Import Purchase Returns,4ج. استيراد مرتجعات المشتريات
 5. Import Sales Invoices,5. استيراد فواتير المبيعات
 5c. Import Sales Returns,5ج. استيراد مرتجعات المبيعات
+Stop Import,إيقاف الاستيراد
+Not permitted to stop import.,لا تملك صلاحية إيقاف الاستيراد.
+Stop signal sent to import job.,تم إرسال أمر إيقاف مهمة الاستيراد.
+Please save the document first to enable Validate and Start Import buttons.,يرجى حفظ المستند أولاً لتفعيل أزرار الفحص وبدء الاستيراد.
+Are you sure you want to stop the running import?,هل أنت متأكد من إيقاف عملية الاستيراد الجارية؟

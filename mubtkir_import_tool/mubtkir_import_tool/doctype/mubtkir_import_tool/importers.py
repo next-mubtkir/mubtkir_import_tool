@@ -178,7 +178,7 @@ def _get_tax_template_rows(template_doctype: str, template_name: str) -> list[di
 	)
 
 
-def import_items(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, item_group: str | None = None, progress_cb=None) -> dict:
+def import_items(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, item_group: str | None = None, progress_cb=None, should_stop_cb=None) -> dict:
 	"""Import Daftra Products CSV/ZIP into ERPNext Item DocType."""
 	_mh, rows, _ch, _cr = load_daftra_source("Item", main_file_path, child_file_path)
 	existing_map = {
@@ -271,7 +271,7 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 	return {"total": total, "imported": imported, "skipped": skipped, "failed": failed, "logs": logs}
 
 
-def import_customers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, customer_group: str | None = None, progress_cb=None) -> dict:
+def import_customers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, customer_group: str | None = None, progress_cb=None, should_stop_cb=None) -> dict:
 	"""Import Daftra Clients (+ Client_contacts) into ERPNext Customer DocType."""
 	_mh, rows, _ch, contact_rows = load_daftra_source("Customer", main_file_path, child_file_path)
 	contacts_by_no = {c.get("ClientNumber", ""): c for c in contact_rows if c.get("ClientNumber")}
@@ -354,7 +354,7 @@ def import_customers(main_file_path: str, child_file_path: str | None = None, sk
 	return {"total": total, "imported": imported, "skipped": skipped, "failed": failed, "logs": logs}
 
 
-def import_suppliers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, supplier_group: str | None = None, progress_cb=None) -> dict:
+def import_suppliers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, supplier_group: str | None = None, progress_cb=None, should_stop_cb=None) -> dict:
 	"""Import Daftra Suppliers (+ Supplier_contacts) into ERPNext Supplier DocType."""
 	_mh, rows, _ch, contact_rows = load_daftra_source("Supplier", main_file_path, child_file_path)
 	contacts_by_no = {c.get("supplier_number", ""): c for c in contact_rows if c.get("supplier_number")}
@@ -494,6 +494,7 @@ def import_invoices(
 	default_supplier_group: str | None = None,
 	max_records: int = 0,
 	progress_cb=None,
+	should_stop_cb=None,
 ) -> dict:
 	"""
 	Unified importer for Daftra Sales Invoices, Purchase Invoices, and Return Invoices (Credit/Debit Notes).
@@ -777,6 +778,8 @@ def import_invoices(
 			frappe.db.commit()
 			if progress_cb:
 				progress_cb(idx, total)
+			if should_stop_cb and should_stop_cb():
+				break
 
 	frappe.db.commit()
 	return {"total": total, "imported": imported, "skipped": skipped, "failed": failed, "logs": logs}

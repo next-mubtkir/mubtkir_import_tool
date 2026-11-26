@@ -166,6 +166,7 @@ class MubtkirImportTool(Document):
 				self.set(f, "")
 		self.set("import_logs", [])
 		self.save()
+		frappe.cache().delete_value(f"mubtkir_import_stop_{self.name}")
 
 		frappe.enqueue_doc(
 			self.doctype,
@@ -179,6 +180,16 @@ class MubtkirImportTool(Document):
 			target_stage=target_stage,
 		)
 		return {"status": "Importing", "message": _("Import job enqueued.")}
+
+	@frappe.whitelist()
+	def stop_import(self):
+		"""Signal the running background import job to stop and reset status."""
+		if not self.has_permission("write"):
+			frappe.throw(_("Not permitted to stop import."), frappe.PermissionError)
+		frappe.cache().set_value(f"mubtkir_import_stop_{self.name}", 1, expires_in_sec=3600)
+		self.status = "Stopped on Stage Error"
+		self.save()
+		return {"status": self.status, "message": _("Stop signal sent to import job.")}
 
 	def run_import_job(self, target_stage: str | None = None):
 		"""Background worker method executing stages in strict dependency order."""
@@ -211,6 +222,10 @@ class MubtkirImportTool(Document):
 			stopped_early = False
 
 			for stage, main_path, child_path, force_ret in stages:
+				if frappe.cache().get_value(f"mubtkir_import_stop_{self.name}"):
+					stopped_early = True
+					break
+
 				def publish_progress(current, total, st=stage):
 					frappe.publish_realtime(
 						"mubtkir_import_progress",
@@ -223,6 +238,9 @@ class MubtkirImportTool(Document):
 						user=self.modified_by,
 					)
 
+				def should_stop():
+					return bool(frappe.cache().get_value(f"mubtkir_import_stop_{self.name}"))
+
 				if stage == "Item":
 					res = import_items(
 						main_path,
@@ -230,6 +248,7 @@ class MubtkirImportTool(Document):
 						skip_existing=bool(self.skip_existing),
 						item_group=self.default_item_group,
 						progress_cb=publish_progress,
+						should_stop_cb=should_stop,
 					)
 				elif stage == "Customer":
 					res = import_customers(
@@ -238,6 +257,7 @@ class MubtkirImportTool(Document):
 						skip_existing=bool(self.skip_existing),
 						customer_group=self.default_customer_group,
 						progress_cb=publish_progress,
+						should_stop_cb=should_stop,
 					)
 				elif stage == "Supplier":
 					res = import_suppliers(
@@ -246,6 +266,7 @@ class MubtkirImportTool(Document):
 						skip_existing=bool(self.skip_existing),
 						supplier_group=self.default_supplier_group,
 						progress_cb=publish_progress,
+						should_stop_cb=should_stop,
 					)
 				elif stage in ("Purchase Invoice", "Purchase Return"):
 					res = import_invoices(
@@ -263,6 +284,7 @@ class MubtkirImportTool(Document):
 						default_supplier_group=self.default_supplier_group,
 						max_records=int(self.max_records_per_run or 0),
 						progress_cb=publish_progress,
+						should_stop_cb=should_stop,
 					)
 				elif stage in ("Sales Invoice", "Sales Return"):
 					res = import_invoices(
@@ -280,6 +302,7 @@ class MubtkirImportTool(Document):
 						default_customer_group=self.default_customer_group,
 						max_records=int(self.max_records_per_run or 0),
 						progress_cb=publish_progress,
+						should_stop_cb=should_stop,
 					)
 				else:
 					continue
@@ -309,7 +332,7 @@ class MubtkirImportTool(Document):
 				self.save(ignore_permissions=True)
 				frappe.db.commit()
 
-				if self.stop_on_stage_error and res["failed"] > 0 and not target_stage:
+				if should_stop() or (self.stop_on_stage_error and res["failed"] > 0 and not target_stage):
 					stopped_early = True
 					break
 
