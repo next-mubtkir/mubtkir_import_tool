@@ -56,7 +56,9 @@
   "suppliers_result",
   "column_break_stage_results",
   "purchase_result",
+  "purchase_returns_result",
   "sales_result",
+  "sales_returns_result",
   "section_summary",
   "validation_summary",
   "section_logs",
@@ -365,9 +367,21 @@
    "read_only": 1
   },
   {
+   "fieldname": "purchase_returns_result",
+   "fieldtype": "Data",
+   "label": "Purchase Returns Result",
+   "read_only": 1
+  },
+  {
    "fieldname": "sales_result",
    "fieldtype": "Data",
    "label": "Sales Result",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_returns_result",
+   "fieldtype": "Data",
+   "label": "Sales Returns Result",
    "read_only": 1
   },
   {

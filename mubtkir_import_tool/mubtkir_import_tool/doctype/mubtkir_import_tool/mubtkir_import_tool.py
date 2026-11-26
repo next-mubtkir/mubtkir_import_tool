@@ -148,7 +148,15 @@ class MubtkirImportTool(Document):
 		self.imported_records = 0
 		self.skipped_records = 0
 		self.failed_records = 0
-		for f in ("items_result", "customers_result", "suppliers_result", "purchase_result", "sales_result"):
+		for f in (
+			"items_result",
+			"customers_result",
+			"suppliers_result",
+			"purchase_result",
+			"purchase_returns_result",
+			"sales_result",
+			"sales_returns_result",
+		):
 			self.set(f, "")
 		self.set("import_logs", [])
 		self.save()
@@ -177,9 +185,9 @@ class MubtkirImportTool(Document):
 			"Customer": "customers_result",
 			"Supplier": "suppliers_result",
 			"Purchase Invoice": "purchase_result",
-			"Purchase Return": "purchase_result",
+			"Purchase Return": "purchase_returns_result",
 			"Sales Invoice": "sales_result",
-			"Sales Return": "sales_result",
+			"Sales Return": "sales_returns_result",
 		}
 
 		try:

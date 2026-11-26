@@ -481,6 +481,12 @@ def import_invoices(
 	main_headers, main_rows, _ch, child_rows = load_daftra_source(stage, main_file_path, child_file_path)
 	no_col, party_col = _resolve_invoice_columns(stage, main_headers)
 
+	# Sort invoices chronologically from oldest to newest before importing
+	main_rows = sorted(
+		main_rows,
+		key=lambda r: (parse_date_str(r.get("Date")) or "9999-99-99", r.get(no_col, "")),
+	)
+
 	items_by_no: dict[str, list[dict[str, str]]] = {}
 	for item_row in child_rows:
 		items_by_no.setdefault(item_row.get("no", ""), []).append(item_row)
