@@ -499,22 +499,13 @@ def import_invoices(
 		if pno and pname:
 			party_by_no[pno] = pname
 
-	has_daftra_col = frappe.db.has_column(target_doctype, "custom_daftra_no")
 	existing_map: dict[str, str] = {}
-	if has_daftra_col:
-		for r in frappe.get_all(
-			target_doctype,
-			filters={"custom_daftra_no": ["is", "set"], "docstatus": ["<", 2]},
-			fields=["name", "custom_daftra_no"],
-		):
-			existing_map[r.custom_daftra_no] = r.name
-	else:
-		for r in frappe.get_all(
-			target_doctype,
-			filters={ref_field: ["is", "set"], "docstatus": ["<", 2]},
-			fields=["name", ref_field],
-		):
-			existing_map[r.get(ref_field)] = r.name
+	for r in frappe.get_all(
+		target_doctype,
+		filters={ref_field: ["is", "set"], "docstatus": ["<", 2]},
+		fields=["name", ref_field],
+	):
+		existing_map[r.get(ref_field)] = r.name
 
 	existing_parties = set(frappe.get_all(party_type, pluck="name"))
 	item_lookup = _build_item_lookup()
@@ -590,8 +581,6 @@ def import_invoices(
 			doc.currency = currency
 			doc.update_stock = 1 if update_stock else 0
 			doc.set(ref_field, inv_no)
-			if has_daftra_col:
-				doc.custom_daftra_no = inv_no
 
 			notes = (inv_row.get("Notes") or "").strip()
 			if notes:
