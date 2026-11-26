@@ -108,6 +108,9 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 				name: ["in", ["Item", "Customer", "Supplier", "Purchase Invoice", "Sales Invoice"]],
 			},
 		}));
+		frm.set_query("default_item_group", () => ({ filters: { is_group: 0 } }));
+		frm.set_query("default_customer_group", () => ({ filters: { is_group: 0 } }));
+		frm.set_query("default_supplier_group", () => ({ filters: { is_group: 0 } }));
 
 		frappe.realtime.on("mubtkir_import_progress", (data) => {
 			if (!data || data.docname !== frm.doc.name) return;

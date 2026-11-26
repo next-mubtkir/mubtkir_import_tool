@@ -28,13 +28,22 @@ def _resolve_default_link(
 	settings_field: str,
 	candidates: tuple[str, ...] = (),
 ) -> str | None:
-	"""Safely resolve a default Link value (works on both Arabic and English ERPNext sites)."""
+	"""Safely resolve a default non-group Link value (works on both Arabic and English ERPNext sites)."""
+	has_is_group = frappe.db.has_column(doctype, "is_group")
 	val = frappe.db.get_single_value(settings_doctype, settings_field)
 	if val and frappe.db.exists(doctype, val):
-		return val
+		if not has_is_group or not frappe.db.get_value(doctype, val, "is_group"):
+			return val
 	for name in candidates:
-		if frappe.db.exists(doctype, name):
+		if has_is_group:
+			if frappe.db.exists(doctype, {"name": name, "is_group": 0}):
+				return name
+		elif frappe.db.exists(doctype, name):
 			return name
+	if has_is_group:
+		leaf = frappe.db.get_value(doctype, {"is_group": 0}, "name")
+		if leaf:
+			return leaf
 	return frappe.db.get_value(doctype, {}, "name")
 
 
@@ -277,10 +286,10 @@ def import_customers(main_file_path: str, child_file_path: str | None = None, sk
 	contacts_by_no = {c.get("ClientNumber", ""): c for c in contact_rows if c.get("ClientNumber")}
 	existing_names = set(frappe.get_all("Customer", pluck="name"))
 	default_group = customer_group or _resolve_default_link(
-		"Customer Group", "Selling Settings", "customer_group", ("All Customer Groups", "جميع مجموعات العملاء", "Commercial", "تجاري")
+		"Customer Group", "Selling Settings", "customer_group", ("Commercial", "Individual", "تجاري", "أفراد")
 	)
 	default_territory = _resolve_default_link(
-		"Territory", "Selling Settings", "territory", ("All Territories", "جميع المناطق", "Saudi Arabia", "المملكة العربية السعودية")
+		"Territory", "Selling Settings", "territory", ("Saudi Arabia", "المملكة العربية السعودية", "Rest Of The World")
 	)
 
 	imported = 0
@@ -459,10 +468,10 @@ def _ensure_party(
 		doc.customer_name = party_name[:140]
 		doc.customer_type = "Company"
 		doc.customer_group = party_group or _resolve_default_link(
-			"Customer Group", "Selling Settings", "customer_group", ("All Customer Groups", "جميع مجموعات العملاء", "Commercial", "تجاري")
+			"Customer Group", "Selling Settings", "customer_group", ("Commercial", "Individual", "تجاري", "أفراد")
 		)
 		doc.territory = _resolve_default_link(
-			"Territory", "Selling Settings", "territory", ("All Territories", "جميع المناطق", "Saudi Arabia", "المملكة العربية السعودية")
+			"Territory", "Selling Settings", "territory", ("Saudi Arabia", "المملكة العربية السعودية", "Rest Of The World")
 		)
 	else:
 		doc.supplier_name = party_name[:140]

@@ -186,6 +186,15 @@ class MubtkirImportTool(Document):
 
 	def run_import_job(self):
 		"""Background worker method executing stages in strict dependency order."""
+		prev_lang = getattr(frappe.local, "lang", "en")
+		user_lang = (
+			frappe.db.get_value("User", self.modified_by, "language")
+			or frappe.db.get_single_value("System Settings", "language")
+			or prev_lang
+		)
+		if user_lang:
+			frappe.local.lang = user_lang
+
 		prev_in_import = getattr(frappe.flags, "in_import", False)
 		prev_mute_emails = getattr(frappe.flags, "mute_emails", False)
 		frappe.flags.in_import = True
@@ -351,6 +360,7 @@ class MubtkirImportTool(Document):
 			self.save(ignore_permissions=True)
 			frappe.db.commit()
 		finally:
+			frappe.local.lang = prev_lang
 			frappe.flags.in_import = prev_in_import
 			frappe.flags.mute_emails = prev_mute_emails
 			frappe.publish_realtime(
