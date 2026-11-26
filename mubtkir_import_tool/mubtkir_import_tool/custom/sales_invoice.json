@@ -1,0 +1,20 @@
+{
+ "custom_fields": [
+  {
+   "doctype": "Custom Field",
+   "dt": "Sales Invoice",
+   "fieldname": "custom_daftra_no",
+   "fieldtype": "Data",
+   "insert_after": "po_no",
+   "label": "Daftra Invoice No",
+   "no_copy": 1,
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "custom_perms": [],
+ "doctype": "Sales Invoice",
+ "links": [],
+ "property_setters": [],
+ "sync_on_migrate": 1
+}

@@ -1,45 +1,91 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:MIT-{reference_doctype}-{####}",
+ "autoname": "format:MIT-{####}",
  "creation": "2024-12-23 18:43:53.024597",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "backup_warning_html",
+  "section_mode",
+  "import_mode",
   "reference_doctype",
+  "company",
+  "column_break_settings",
+  "tax_mode",
   "sales_taxes_and_charges_template",
   "purchase_taxes_and_charges",
+  "submit_invoices",
+  "update_stock",
+  "skip_existing",
+  "section_single_files",
   "main_file",
   "child_file",
-  "column_break_mhov",
-  "import_data"
+  "section_full_files",
+  "products_file",
+  "customers_file",
+  "suppliers_file",
+  "column_break_full_files",
+  "purchase_invoices_file",
+  "purchase_items_file",
+  "sales_invoices_file",
+  "sales_items_file",
+  "section_status",
+  "status",
+  "total_records",
+  "valid_records",
+  "column_break_status",
+  "imported_records",
+  "skipped_records",
+  "failed_records",
+  "validation_summary",
+  "import_logs"
  ],
  "fields": [
   {
+   "fieldname": "backup_warning_html",
+   "fieldtype": "HTML",
+   "label": "Backup Notice"
+  },
+  {
+   "fieldname": "section_mode",
+   "fieldtype": "Section Break",
+   "label": "Import Configuration"
+  },
+  {
+   "default": "Full Migration",
+   "fieldname": "import_mode",
+   "fieldtype": "Select",
+   "label": "Import Mode",
+   "options": "Single DocType\nFull Migration",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.import_mode=='Single DocType'",
    "fieldname": "reference_doctype",
    "fieldtype": "Link",
    "label": "Reference Doctype",
+   "mandatory_depends_on": "eval:doc.import_mode=='Single DocType'",
    "options": "DocType"
   },
   {
-   "fieldname": "main_file",
-   "fieldtype": "Attach",
-   "label": "Main File"
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
   },
   {
-   "fieldname": "child_file",
-   "fieldtype": "Attach",
-   "label": "Child File"
-  },
-  {
-   "fieldname": "column_break_mhov",
+   "fieldname": "column_break_settings",
    "fieldtype": "Column Break"
   },
   {
-   "default": "0",
-   "fieldname": "import_data",
-   "fieldtype": "Check",
-   "label": "Import Data"
+   "default": "Both (Auto-detect per row)",
+   "description": "Select how Daftra prices are treated: Tax Exclusive, Tax Inclusive, or Auto-detect per row.",
+   "fieldname": "tax_mode",
+   "fieldtype": "Select",
+   "label": "Tax Mode",
+   "options": "Tax Exclusive\nTax Inclusive\nBoth (Auto-detect per row)",
+   "reqd": 1
   },
   {
    "fieldname": "sales_taxes_and_charges_template",
@@ -50,13 +96,161 @@
   {
    "fieldname": "purchase_taxes_and_charges",
    "fieldtype": "Link",
-   "label": "Purchase Taxes and Charges",
+   "label": "Purchase Taxes and Charges Template",
    "options": "Purchase Taxes and Charges Template"
+  },
+  {
+   "default": "1",
+   "fieldname": "submit_invoices",
+   "fieldtype": "Check",
+   "label": "Submit Invoices Automatically"
+  },
+  {
+   "default": "0",
+   "fieldname": "update_stock",
+   "fieldtype": "Check",
+   "label": "Update Stock on Invoices"
+  },
+  {
+   "default": "1",
+   "fieldname": "skip_existing",
+   "fieldtype": "Check",
+   "label": "Skip Existing Records"
+  },
+  {
+   "depends_on": "eval:doc.import_mode=='Single DocType'",
+   "fieldname": "section_single_files",
+   "fieldtype": "Section Break",
+   "label": "Upload Files (ZIP / CSV / Excel)"
+  },
+  {
+   "fieldname": "main_file",
+   "fieldtype": "Attach",
+   "label": "Main File (or Daftra ZIP)"
+  },
+  {
+   "description": "Optional if Main File is a Daftra ZIP archive or Products/Items file.",
+   "fieldname": "child_file",
+   "fieldtype": "Attach",
+   "label": "Child / Items / Contacts File"
+  },
+  {
+   "depends_on": "eval:doc.import_mode=='Full Migration'",
+   "fieldname": "section_full_files",
+   "fieldtype": "Section Break",
+   "label": "Full Migration Files (Order: Products -> Customers -> Suppliers -> Purchase Invoices -> Sales Invoices)"
+  },
+  {
+   "fieldname": "products_file",
+   "fieldtype": "Attach",
+   "label": "1. Products File (CSV / ZIP)"
+  },
+  {
+   "fieldname": "customers_file",
+   "fieldtype": "Attach",
+   "label": "2. Customers File (ZIP / CSV)"
+  },
+  {
+   "fieldname": "suppliers_file",
+   "fieldtype": "Attach",
+   "label": "3. Suppliers File (ZIP / CSV)"
+  },
+  {
+   "fieldname": "column_break_full_files",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "purchase_invoices_file",
+   "fieldtype": "Attach",
+   "label": "4. Purchase Invoices (ZIP / CSV)"
+  },
+  {
+   "description": "Only needed if Purchase Invoices is a CSV instead of ZIP.",
+   "fieldname": "purchase_items_file",
+   "fieldtype": "Attach",
+   "label": "4b. Purchase Items (CSV, if not ZIP)"
+  },
+  {
+   "fieldname": "sales_invoices_file",
+   "fieldtype": "Attach",
+   "label": "5. Sales Invoices (ZIP / CSV)"
+  },
+  {
+   "description": "Only needed if Sales Invoices is a CSV instead of ZIP.",
+   "fieldname": "sales_items_file",
+   "fieldtype": "Attach",
+   "label": "5b. Sales Items (CSV, if not ZIP)"
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Validation & Import Status"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nValidating\nValidated\nValidation Failed\nImporting\nCompleted\nCompleted with Errors\nFailed",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_records",
+   "fieldtype": "Int",
+   "label": "Total Records",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "valid_records",
+   "fieldtype": "Int",
+   "label": "Valid Records",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "imported_records",
+   "fieldtype": "Int",
+   "label": "Imported Records",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "skipped_records",
+   "fieldtype": "Int",
+   "label": "Skipped Records",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "failed_records",
+   "fieldtype": "Int",
+   "label": "Failed Records",
+   "read_only": 1
+  },
+  {
+   "fieldname": "validation_summary",
+   "fieldtype": "Small Text",
+   "label": "Summary",
+   "read_only": 1
+  },
+  {
+   "fieldname": "import_logs",
+   "fieldtype": "Table",
+   "label": "Validation & Import Logs",
+   "options": "Mubtkir Import Log",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-06-30 15:29:19.960389",
+ "modified": "2026-11-26 10:45:00.000000",
  "modified_by": "Administrator",
  "module": "Mubtkir Import Tool",
  "name": "Mubtkir Import Tool",

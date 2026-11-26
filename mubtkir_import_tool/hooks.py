@@ -82,7 +82,7 @@ app_license = "mit"
 # Installation
 # ------------
 
-before_install = "mubtkir_import_tool.after_migrate.after_migrate"
+# before_install = "mubtkir_import_tool.after_migrate.after_migrate"
 # after_install = "mubtkir_import_tool.install.after_install"
 
 # Uninstallation
@@ -92,7 +92,7 @@ before_install = "mubtkir_import_tool.after_migrate.after_migrate"
 # after_uninstall = "mubtkir_import_tool.uninstall.after_uninstall"
 
 
-before_migrate = "mubtkir_import_tool.after_migrate.after_migrate"
+# before_migrate = "mubtkir_import_tool.after_migrate.after_migrate"
 
 # Integration Setup
 # ------------------
