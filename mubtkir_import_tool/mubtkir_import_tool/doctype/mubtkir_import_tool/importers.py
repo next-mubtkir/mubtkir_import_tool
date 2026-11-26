@@ -626,6 +626,7 @@ def import_invoices(
 				doc.naming_series = chosen_series
 			doc.currency = currency
 			doc.disable_rounded_total = 1
+			doc.ignore_pricing_rule = 1
 			doc.update_stock = 1 if update_stock else 0
 			doc.set(ref_field, inv_no)
 
@@ -656,6 +657,8 @@ def import_invoices(
 					doc.return_against = existing_map[orig_ref]
 
 			row_tax_rates: set[float] = set()
+			row_inclusive_flags: set[bool] = set()
+			prepared_items: list[dict] = []
 			total_daftra_tax = 0.0
 
 			for item_row in rel_items:
@@ -668,8 +671,9 @@ def import_invoices(
 				t1_amt = abs(flt(item_row.get("tax1_amount"), 6))
 				t2_amt = abs(flt(item_row.get("tax2_amount"), 6))
 
-				_is_inclusive = detect_row_tax_inclusive(unit_price, qty, sub_nt, sub, tax_mode)
+				is_inc = detect_row_tax_inclusive(unit_price, qty, sub_nt, sub, tax_mode)
 				net_rate = flt(sub_nt / qty, 9) if qty else 0.0
+				inc_rate = flt(sub / qty, 9) if qty else 0.0
 
 				item_label = (item_row.get("item") or "").strip()
 				item_code = item_lookup.get(item_label)
@@ -691,19 +695,42 @@ def import_invoices(
 					newly_created_items.append((item_label, new_code))
 
 				row_tax_rates.add(flt(t1_val + t2_val, 4))
+				row_inclusive_flags.add(is_inc)
 				total_daftra_tax += (t1_amt + t2_amt)
 
-				item_dict = {
+				prepared_items.append({
 					"item_code": item_code,
 					"description": item_row.get("description") or item_label,
 					"qty": -qty if is_ret else qty,
-					"rate": net_rate,
+					"net_rate": net_rate,
+					"inc_rate": inc_rate,
+				})
+
+			total_daftra_tax = flt(total_daftra_tax, 2)
+			use_inclusive_print_rate = (
+				total_daftra_tax > 0
+				and row_inclusive_flags == {True}
+				and len(row_tax_rates) == 1
+				and len(template_rows) == 1
+				and abs(flt(template_rows[0]["rate"], 4) - next(iter(row_tax_rates))) < 0.01
+			)
+
+			intended_rates: list[float] = []
+			for pitem in prepared_items:
+				chosen_rate = pitem["inc_rate"] if use_inclusive_print_rate else pitem["net_rate"]
+				intended_rates.append(chosen_rate)
+				item_dict = {
+					"item_code": pitem["item_code"],
+					"description": pitem["description"],
+					"qty": pitem["qty"],
+					"price_list_rate": chosen_rate,
+					"rate": chosen_rate,
+					"is_free_item": 1 if chosen_rate == 0 else 0,
 				}
 				if target_doctype == "Sales Invoice" and update_stock:
 					item_dict["allow_zero_valuation_rate"] = 1
 				doc.append("items", item_dict)
 
-			total_daftra_tax = flt(total_daftra_tax, 2)
 			if total_daftra_tax > 0:
 				is_purchase = target_doctype == "Purchase Invoice"
 				if (
@@ -717,7 +744,7 @@ def import_invoices(
 						"account_head": template_rows[0]["account_head"],
 						"description": template_rows[0]["description"] or "VAT",
 						"rate": template_rows[0]["rate"],
-						"included_in_print_rate": 0,
+						"included_in_print_rate": 1 if use_inclusive_print_rate else 0,
 					}
 					if is_purchase:
 						tax_row["category"] = template_rows[0].get("category") or "Total"
@@ -742,6 +769,14 @@ def import_invoices(
 				disc = abs(summary_discount)
 				doc.apply_discount_on = "Grand Total"
 				doc.discount_amount = -disc if is_ret else disc
+
+			# Prevent ERPNext set_missing_values() from overwriting 0-rate/free items with Item valuation_rate
+			doc.set_missing_values()
+			for item_doc, chosen_rate in zip(doc.items, intended_rates):
+				item_doc.price_list_rate = chosen_rate
+				item_doc.rate = chosen_rate
+				item_doc.is_free_item = 1 if chosen_rate == 0 else 0
+			doc.calculate_taxes_and_totals()
 
 			doc.insert(ignore_permissions=True)
 
