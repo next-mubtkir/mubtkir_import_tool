@@ -2,10 +2,13 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.utils import flt
 
 from .daftra_parser import (
+	_resolve_invoice_columns,
 	detect_row_tax_inclusive,
+	is_return_invoice_row,
 	load_daftra_source,
 	parse_date_str,
 )
@@ -62,15 +65,20 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 		name = (row.get("Name") or code)[:140]
 		if not code:
 			failed += 1
-			logs.append({"stage": "Item", "row_number": idx + 1, "reference_no": "", "severity": "Error", "message": "Missing ProductCode and Name."})
+			logs.append({
+				"stage": _("Item"),
+				"row_number": idx + 1,
+				"reference_no": "",
+				"severity": "Error",
+				"message": _("Product code and name are both empty."),
+			})
 			continue
 
-		if code in existing_codes:
-			if skip_existing:
-				skipped += 1
-				if progress_cb and idx % 25 == 0:
-					progress_cb(idx, total)
-				continue
+		if code in existing_codes and skip_existing:
+			skipped += 1
+			if progress_cb and idx % 25 == 0:
+				progress_cb(idx, total)
+			continue
 
 		sp = f"imp_item_{idx}"
 		frappe.db.savepoint(sp)
@@ -99,7 +107,13 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 		except Exception as exc:
 			frappe.db.rollback(save_point=sp)
 			failed += 1
-			logs.append({"stage": "Item", "row_number": idx + 1, "reference_no": code, "severity": "Error", "message": str(exc)[:300]})
+			logs.append({
+				"stage": _("Item"),
+				"row_number": idx + 1,
+				"reference_no": code,
+				"severity": "Error",
+				"message": str(exc)[:300],
+			})
 
 		if idx % 50 == 0:
 			frappe.db.commit()
@@ -129,7 +143,13 @@ def import_customers(main_file_path: str, child_file_path: str | None = None, sk
 		ref = row.get("ClientNumber") or cust_name
 		if not cust_name:
 			failed += 1
-			logs.append({"stage": "Customer", "row_number": idx + 1, "reference_no": ref, "severity": "Error", "message": "Missing Customer name."})
+			logs.append({
+				"stage": _("Customer"),
+				"row_number": idx + 1,
+				"reference_no": ref,
+				"severity": "Error",
+				"message": _("Customer name is empty."),
+			})
 			continue
 
 		if cust_name in existing_names and skip_existing:
@@ -166,7 +186,13 @@ def import_customers(main_file_path: str, child_file_path: str | None = None, sk
 		except Exception as exc:
 			frappe.db.rollback(save_point=sp)
 			failed += 1
-			logs.append({"stage": "Customer", "row_number": idx + 1, "reference_no": ref, "severity": "Error", "message": str(exc)[:300]})
+			logs.append({
+				"stage": _("Customer"),
+				"row_number": idx + 1,
+				"reference_no": ref,
+				"severity": "Error",
+				"message": str(exc)[:300],
+			})
 
 		if idx % 50 == 0:
 			frappe.db.commit()
@@ -195,7 +221,13 @@ def import_suppliers(main_file_path: str, child_file_path: str | None = None, sk
 		ref = row.get("SupplierNumber") or sup_name
 		if not sup_name:
 			failed += 1
-			logs.append({"stage": "Supplier", "row_number": idx + 1, "reference_no": ref, "severity": "Error", "message": "Missing Supplier name."})
+			logs.append({
+				"stage": _("Supplier"),
+				"row_number": idx + 1,
+				"reference_no": ref,
+				"severity": "Error",
+				"message": _("Supplier name is empty."),
+			})
 			continue
 
 		if sup_name in existing_names and skip_existing:
@@ -233,7 +265,13 @@ def import_suppliers(main_file_path: str, child_file_path: str | None = None, sk
 		except Exception as exc:
 			frappe.db.rollback(save_point=sp)
 			failed += 1
-			logs.append({"stage": "Supplier", "row_number": idx + 1, "reference_no": ref, "severity": "Error", "message": str(exc)[:300]})
+			logs.append({
+				"stage": _("Supplier"),
+				"row_number": idx + 1,
+				"reference_no": ref,
+				"severity": "Error",
+				"message": str(exc)[:300],
+			})
 
 		if idx % 50 == 0:
 			frappe.db.commit()
@@ -285,49 +323,54 @@ def import_invoices(
 	submit_invoices: bool = True,
 	update_stock: bool = False,
 	skip_existing: bool = True,
+	force_return: bool = False,
 	progress_cb=None,
 ) -> dict:
 	"""
-	Unified importer for Daftra Sales Invoices and Purchase Invoices.
+	Unified importer for Daftra Sales Invoices, Purchase Invoices, and Return Invoices (Credit/Debit Notes).
 	Guarantees 100% tax & grand_total accuracy against Daftra's SummaryTotal.
 	"""
-	if stage == "Sales Invoice":
-		no_col = "InvoiceNo"
-		party_col = "ClientBusinessName"
+	if stage in ("Sales Invoice", "Sales Return"):
+		target_doctype = "Sales Invoice"
 		party_type = "Customer"
 		party_field = "customer"
 		country_col = "ClientCountryCode"
 		ref_field = "po_no"
 		template_doctype = "Sales Taxes and Charges Template"
-	elif stage == "Purchase Invoice":
-		no_col = "PurchaseOrderNo"
-		party_col = "SupplierBusinessName"
+	elif stage in ("Purchase Invoice", "Purchase Return"):
+		target_doctype = "Purchase Invoice"
 		party_type = "Supplier"
 		party_field = "supplier"
 		country_col = "SupplierCountryCode"
 		ref_field = "bill_no"
 		template_doctype = "Purchase Taxes and Charges Template"
 	else:
-		raise ValueError(f"Invalid invoice stage: {stage}")
+		raise ValueError(_("Invalid invoice stage: {0}").format(stage))
 
 	company = _get_default_company(company)
-	_, main_rows, _, child_rows = load_daftra_source(stage, main_file_path, child_file_path)
+	main_headers, main_rows, _, child_rows = load_daftra_source(stage, main_file_path, child_file_path)
+	no_col, party_col = _resolve_invoice_columns(stage, main_headers)
 
 	items_by_no: dict[str, list[dict[str, str]]] = {}
 	for item_row in child_rows:
 		items_by_no.setdefault(item_row.get("no", ""), []).append(item_row)
 
-	has_daftra_col = frappe.db.has_column(stage, "custom_daftra_no")
-	existing_refs: set[str] = set()
-	if skip_existing:
-		if has_daftra_col:
-			existing_refs = set(
-				frappe.get_all(stage, filters={"custom_daftra_no": ["is", "set"], "docstatus": ["<", 2]}, pluck="custom_daftra_no")
-			)
-		else:
-			existing_refs = set(
-				frappe.get_all(stage, filters={ref_field: ["is", "set"], "docstatus": ["<", 2]}, pluck=ref_field)
-			)
+	has_daftra_col = frappe.db.has_column(target_doctype, "custom_daftra_no")
+	existing_map: dict[str, str] = {}
+	if has_daftra_col:
+		for r in frappe.get_all(
+			target_doctype,
+			filters={"custom_daftra_no": ["is", "set"], "docstatus": ["<", 2]},
+			fields=["name", "custom_daftra_no"],
+		):
+			existing_map[r.custom_daftra_no] = r.name
+	else:
+		for r in frappe.get_all(
+			target_doctype,
+			filters={ref_field: ["is", "set"], "docstatus": ["<", 2]},
+			fields=["name", ref_field],
+		):
+			existing_map[r.get(ref_field)] = r.name
 
 	existing_parties = set(frappe.get_all(party_type, pluck="name"))
 	item_lookup = _build_item_lookup()
@@ -343,7 +386,7 @@ def import_invoices(
 
 	for idx, inv_row in enumerate(main_rows, start=1):
 		inv_no = inv_row.get(no_col, "")
-		if skip_existing and inv_no in existing_refs:
+		if skip_existing and inv_no in existing_map:
 			skipped += 1
 			if progress_cb and idx % 25 == 0:
 				progress_cb(idx, total)
@@ -359,20 +402,23 @@ def import_invoices(
 		if not inv_no or not party_name or not posting_date or not currency or not rel_items:
 			failed += 1
 			logs.append({
-				"stage": stage,
+				"stage": _(stage),
 				"row_number": idx + 1,
 				"reference_no": inv_no,
 				"severity": "Error",
-				"message": "Missing required invoice fields or items.",
+				"message": _("Invoice {0}: missing required fields (customer/supplier, date, currency, or items).").format(inv_no or idx),
 			})
 			continue
+
+		is_ret = is_return_invoice_row(inv_row, rel_items, force_return=force_return)
+		expected_grand = -abs(summary_total) if is_ret else summary_total
 
 		sp = f"imp_inv_{idx}"
 		frappe.db.savepoint(sp)
 		try:
 			party = _ensure_party(party_type, party_name, existing_parties, inv_row.get(country_col, ""))
 
-			doc = frappe.new_doc(stage)
+			doc = frappe.new_doc(target_doctype)
 			doc.company = company
 			doc.set(party_field, party)
 			doc.set_posting_time = 1
@@ -383,6 +429,17 @@ def import_invoices(
 			doc.set(ref_field, inv_no)
 			if has_daftra_col:
 				doc.custom_daftra_no = inv_no
+
+			if is_ret:
+				doc.is_return = 1
+				orig_ref = (
+					inv_row.get("ReturnAgainst")
+					or inv_row.get("ParentInvoiceNo")
+					or inv_row.get("OriginalInvoiceNo")
+					or ""
+				)
+				if orig_ref and orig_ref in existing_map:
+					doc.return_against = existing_map[orig_ref]
 
 			row_tax_rates: set[float] = set()
 			total_daftra_tax = 0.0
@@ -404,18 +461,16 @@ def import_invoices(
 					item_lookup[item_label] = item_code
 					item_lookup[new_code] = item_code
 
-				qty = flt(item_row.get("quantity"), 6)
-				unit_price = flt(item_row.get("unit_price"), 6)
-				sub_nt = flt(item_row.get("subtotal_without_tax"), 6)
-				sub = flt(item_row.get("subtotal"), 6)
+				qty = abs(flt(item_row.get("quantity"), 6))
+				unit_price = abs(flt(item_row.get("unit_price"), 6))
+				sub_nt = abs(flt(item_row.get("subtotal_without_tax"), 6))
+				sub = abs(flt(item_row.get("subtotal"), 6))
 				t1_val = flt(item_row.get("tax1_value"), 4)
 				t2_val = flt(item_row.get("tax2_value"), 4)
-				t1_amt = flt(item_row.get("tax1_amount"), 6)
-				t2_amt = flt(item_row.get("tax2_amount"), 6)
+				t1_amt = abs(flt(item_row.get("tax1_amount"), 6))
+				t2_amt = abs(flt(item_row.get("tax2_amount"), 6))
 
-				# Detect inclusive vs exclusive per user setting / row
 				_is_inclusive = detect_row_tax_inclusive(unit_price, qty, sub_nt, sub, tax_mode)
-				# Normalize to exact net rate so ERPNext net_amount == Daftra subtotal_without_tax
 				net_rate = flt(sub_nt / qty, 9) if qty else 0.0
 
 				row_tax_rates.add(flt(t1_val + t2_val, 4))
@@ -424,13 +479,12 @@ def import_invoices(
 				doc.append("items", {
 					"item_code": item_code,
 					"description": item_row.get("description") or item_label,
-					"qty": qty,
+					"qty": -qty if is_ret else qty,
 					"rate": net_rate,
 				})
 
 			total_daftra_tax = flt(total_daftra_tax, 2)
 			if total_daftra_tax > 0:
-				# Use template On Net Total if single uniform rate matches template; else Actual tax amount
 				if (
 					len(row_tax_rates) == 1
 					and len(template_rows) == 1
@@ -446,37 +500,39 @@ def import_invoices(
 					})
 				else:
 					if not template_rows:
-						frappe.throw(f"Please select a {template_doctype} to provide the tax account.")
+						frappe.throw(_("Please select a {0} to provide the tax account.").format(template_doctype))
 					doc.append("taxes", {
 						"charge_type": "Actual",
 						"account_head": template_rows[0]["account_head"],
 						"description": template_rows[0]["description"] or "VAT",
-						"tax_amount": total_daftra_tax,
+						"tax_amount": -total_daftra_tax if is_ret else total_daftra_tax,
 						"included_in_print_rate": 0,
 					})
 
-			if summary_discount > 0:
+			if summary_discount != 0:
+				disc = abs(summary_discount)
 				doc.apply_discount_on = "Grand Total"
-				doc.discount_amount = summary_discount
+				doc.discount_amount = -disc if is_ret else disc
 
 			doc.insert(ignore_permissions=True)
 
-			# Verify 100% total accuracy before committing/submitting
-			if abs(flt(doc.grand_total, 2) - summary_total) > 0.05:
+			if abs(flt(doc.grand_total, 2) - expected_grand) > 0.05:
 				frappe.throw(
-					f"Total mismatch for {inv_no}: ERPNext grand_total={flt(doc.grand_total, 2)} != Daftra SummaryTotal={summary_total}"
+					_("Invoice {0}: total mismatch (ERPNext={1}, Daftra={2}).").format(
+						inv_no, flt(doc.grand_total, 2), expected_grand
+					)
 				)
 
 			if submit_invoices:
 				doc.submit()
 
-			existing_refs.add(inv_no)
+			existing_map[inv_no] = doc.name
 			imported += 1
 		except Exception as exc:
 			frappe.db.rollback(save_point=sp)
 			failed += 1
 			logs.append({
-				"stage": stage,
+				"stage": _(stage),
 				"row_number": idx + 1,
 				"reference_no": inv_no,
 				"severity": "Error",

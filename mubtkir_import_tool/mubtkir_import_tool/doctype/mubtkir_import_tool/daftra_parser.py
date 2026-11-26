@@ -7,6 +7,7 @@ import os
 import zipfile
 from datetime import date, datetime
 
+from frappe import _
 from frappe.utils import flt
 
 
@@ -17,7 +18,6 @@ def clean_cell(value) -> str:
 	if isinstance(value, float) and value != value:  # NaN check
 		return ""
 	text = str(value).replace("\ufeff", "").strip()
-	# Handle cases where BOM preceded a quoted string like \ufeff"Name"
 	if len(text) >= 2 and text.startswith('"') and text.endswith('"'):
 		text = text[1:-1].strip()
 	return text
@@ -73,7 +73,7 @@ def read_excel_file(file_path: str) -> tuple[list[str], list[dict[str, str]]]:
 		import openpyxl
 	except ImportError as exc:
 		raise RuntimeError(
-			"openpyxl is required to read .xlsx files. Please upload CSV/ZIP or install openpyxl."
+			_("openpyxl is required to read .xlsx files. Please upload CSV/ZIP or install openpyxl.")
 		) from exc
 
 	wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
@@ -106,10 +106,14 @@ def read_tabular_file(file_path: str) -> tuple[list[str], list[dict[str, str]]]:
 			return read_csv_bytes(fh.read())
 	if ext in (".xlsx", ".xlsm"):
 		return read_excel_file(file_path)
-	raise ValueError(f"Unsupported file format: {ext}. Please upload .zip, .csv, or .xlsx.")
+	raise ValueError(_("Unsupported file format: {0}. Please upload .zip, .csv, or .xlsx.").format(ext))
 
 
-def _find_zip_member(names: list[str], include_keywords: tuple[str, ...], exclude_keywords: tuple[str, ...] = ()) -> str | None:
+def _find_zip_member(
+	names: list[str],
+	include_keywords: tuple[str, ...],
+	exclude_keywords: tuple[str, ...] = (),
+) -> str | None:
 	for name in names:
 		base = os.path.basename(name).lower()
 		if not base.endswith(".csv"):
@@ -124,12 +128,9 @@ def load_daftra_source(
 	main_file_path: str,
 	child_file_path: str | None = None,
 ) -> tuple[list[str], list[dict[str, str]], list[str], list[dict[str, str]]]:
-	"""
-	Load main and optional child CSV/Excel data from either a Daftra .zip archive
-	or separate CSV/Excel files.
-	"""
+	"""Load main and optional child CSV/Excel data from a Daftra .zip archive or separate files."""
 	if not main_file_path or not os.path.exists(main_file_path):
-		raise FileNotFoundError(f"File not found for {stage}: {main_file_path}")
+		raise FileNotFoundError(_("File not found for {0}: {1}").format(stage, main_file_path))
 
 	ext = os.path.splitext(main_file_path)[1].lower()
 	if ext == ".zip":
@@ -144,17 +145,21 @@ def load_daftra_source(
 			elif stage == "Supplier":
 				main_member = _find_zip_member(members, ("supplier",), exclude_keywords=("contact",))
 				child_member = _find_zip_member(members, ("contact",))
-			elif stage == "Purchase Invoice":
-				main_member = _find_zip_member(members, ("purchase_order", "purchase"), exclude_keywords=("item",))
+			elif stage in ("Purchase Invoice", "Purchase Return"):
+				main_member = _find_zip_member(
+					members, ("purchase_order", "purchase", "debit_note", "refund"), exclude_keywords=("item",)
+				)
 				child_member = _find_zip_member(members, ("purchase_order_item", "item"))
-			elif stage == "Sales Invoice":
-				main_member = _find_zip_member(members, ("invoice",), exclude_keywords=("item",))
-				child_member = _find_zip_member(members, ("invoice_item", "item"))
+			elif stage in ("Sales Invoice", "Sales Return"):
+				main_member = _find_zip_member(
+					members, ("invoice", "credit_note", "refund"), exclude_keywords=("item",)
+				)
+				child_member = _find_zip_member(members, ("invoice_item", "credit_note_item", "item"))
 			else:
-				raise ValueError(f"Unsupported stage: {stage}")
+				raise ValueError(_("Unsupported stage: {0}").format(stage))
 
 			if not main_member:
-				raise ValueError(f"Could not find main CSV inside ZIP for {stage}. Found: {members}")
+				raise ValueError(_("Could not find main CSV inside ZIP for {0}.").format(stage))
 
 			main_headers, main_rows = read_csv_bytes(zf.read(main_member))
 			if child_member:
@@ -166,7 +171,7 @@ def load_daftra_source(
 	main_headers, main_rows = read_tabular_file(main_file_path)
 	if child_file_path:
 		if not os.path.exists(child_file_path):
-			raise FileNotFoundError(f"Child file not found for {stage}: {child_file_path}")
+			raise FileNotFoundError(_("Child file not found for {0}: {1}").format(stage, child_file_path))
 		child_headers, child_rows = read_tabular_file(child_file_path)
 	else:
 		child_headers, child_rows = [], []
@@ -185,11 +190,35 @@ def detect_row_tax_inclusive(
 		return True
 	if tax_mode == "Tax Exclusive":
 		return False
-	# Auto-detect per row: compare unit_price * qty against subtotal vs subtotal_without_tax
-	gross_calc = flt(unit_price * quantity, 4)
-	diff_inclusive = abs(gross_calc - subtotal)
-	diff_exclusive = abs(gross_calc - subtotal_without_tax)
+	gross_calc = flt(abs(unit_price) * abs(quantity), 4)
+	diff_inclusive = abs(gross_calc - abs(subtotal))
+	diff_exclusive = abs(gross_calc - abs(subtotal_without_tax))
 	return diff_inclusive < diff_exclusive
+
+
+def is_return_invoice_row(inv_row: dict[str, str], rel_items: list[dict[str, str]], force_return: bool = False) -> bool:
+	"""Detect if a Daftra invoice is a Return (Credit/Debit Note)."""
+	if force_return:
+		return True
+	if flt(inv_row.get("SummaryTotal"), 4) < 0:
+		return True
+	inv_type = (inv_row.get("Type") or inv_row.get("InvoiceType") or "").lower()
+	if any(k in inv_type for k in ("return", "credit", "debit", "refund", "مرتجع")):
+		return True
+	return any(flt(it.get("quantity"), 4) < 0 for it in rel_items)
+
+
+def _resolve_invoice_columns(stage: str, main_headers: list[str]) -> tuple[str, str]:
+	header_set = set(main_headers)
+	if stage in ("Sales Invoice", "Sales Return"):
+		no_col = "InvoiceNo" if "InvoiceNo" in header_set else ("CreditNoteNo" if "CreditNoteNo" in header_set else "InvoiceNo")
+		party_col = "ClientBusinessName"
+	elif stage in ("Purchase Invoice", "Purchase Return"):
+		no_col = "PurchaseOrderNo" if "PurchaseOrderNo" in header_set else ("DebitNoteNo" if "DebitNoteNo" in header_set else "PurchaseOrderNo")
+		party_col = "SupplierBusinessName"
+	else:
+		raise ValueError(_("Unsupported stage: {0}").format(stage))
+	return no_col, party_col
 
 
 def validate_stage_data(
@@ -197,11 +226,9 @@ def validate_stage_data(
 	main_file_path: str,
 	child_file_path: str | None = None,
 	tax_mode: str = "Both (Auto-detect per row)",
+	force_return: bool = False,
 ) -> dict:
-	"""
-	Validate a Daftra stage dataset without mutating the database.
-	Returns dict with keys: total_records, valid_records, logs (list of dicts).
-	"""
+	"""Validate a Daftra stage dataset without mutating the database."""
 	logs: list[dict] = []
 	main_headers, main_rows, child_headers, child_rows = load_daftra_source(
 		stage, main_file_path, child_file_path
@@ -211,7 +238,13 @@ def validate_stage_data(
 		required = {"ProductCode", "Name"}
 		missing = required - set(main_headers)
 		if missing:
-			logs.append({"stage": stage, "row_number": 0, "reference_no": "", "severity": "Error", "message": f"Missing columns: {', '.join(sorted(missing))}"})
+			logs.append({
+				"stage": _(stage),
+				"row_number": 0,
+				"reference_no": "",
+				"severity": "Error",
+				"message": _("Missing required columns in Products file: {0}").format(", ".join(sorted(missing))),
+			})
 			return {"total_records": len(main_rows), "valid_records": 0, "logs": logs}
 
 		valid = 0
@@ -220,67 +253,78 @@ def validate_stage_data(
 			code = row.get("ProductCode") or row.get("Name")
 			name = row.get("Name") or code
 			if not code or not name:
-				logs.append({"stage": stage, "row_number": idx, "reference_no": code or "", "severity": "Error", "message": "Missing ProductCode or Name."})
+				logs.append({
+					"stage": _(stage),
+					"row_number": idx,
+					"reference_no": code or "",
+					"severity": "Error",
+					"message": _("Product code or product name is empty."),
+				})
 				continue
 			if code in seen_codes:
-				logs.append({"stage": stage, "row_number": idx, "reference_no": code, "severity": "Warning", "message": f"Duplicate ProductCode '{code}' in file."})
+				logs.append({
+					"stage": _(stage),
+					"row_number": idx,
+					"reference_no": code,
+					"severity": "Warning",
+					"message": _("Duplicate product code '{0}' in file.").format(code),
+				})
 			seen_codes.add(code)
 			valid += 1
 		return {"total_records": len(main_rows), "valid_records": valid, "logs": logs}
 
-	if stage == "Customer":
+	if stage in ("Customer", "Supplier"):
 		required = {"BusinessName"}
 		missing = required - set(main_headers)
 		if missing:
-			logs.append({"stage": stage, "row_number": 0, "reference_no": "", "severity": "Error", "message": f"Missing columns: {', '.join(sorted(missing))}"})
+			logs.append({
+				"stage": _(stage),
+				"row_number": 0,
+				"reference_no": "",
+				"severity": "Error",
+				"message": _("Missing required columns: {0}").format(", ".join(sorted(missing))),
+			})
 			return {"total_records": len(main_rows), "valid_records": 0, "logs": logs}
 
+		num_col = "ClientNumber" if stage == "Customer" else "SupplierNumber"
 		valid = 0
 		for idx, row in enumerate(main_rows, start=2):
 			name = row.get("BusinessName") or f"{row.get('FirstName', '')} {row.get('LastName', '')}".strip()
-			ref = row.get("ClientNumber") or name
+			ref = row.get(num_col) or name
 			if not name:
-				logs.append({"stage": stage, "row_number": idx, "reference_no": ref, "severity": "Error", "message": "Missing BusinessName / Customer Name."})
+				logs.append({
+					"stage": _(stage),
+					"row_number": idx,
+					"reference_no": ref,
+					"severity": "Error",
+					"message": _("Business name is empty for record {0}.").format(ref or idx),
+				})
 				continue
 			valid += 1
 		return {"total_records": len(main_rows), "valid_records": valid, "logs": logs}
 
-	if stage == "Supplier":
-		required = {"BusinessName"}
-		missing = required - set(main_headers)
-		if missing:
-			logs.append({"stage": stage, "row_number": 0, "reference_no": "", "severity": "Error", "message": f"Missing columns: {', '.join(sorted(missing))}"})
-			return {"total_records": len(main_rows), "valid_records": 0, "logs": logs}
-
-		valid = 0
-		for idx, row in enumerate(main_rows, start=2):
-			name = row.get("BusinessName") or f"{row.get('FirstName', '')} {row.get('LastName', '')}".strip()
-			ref = row.get("SupplierNumber") or name
-			if not name:
-				logs.append({"stage": stage, "row_number": idx, "reference_no": ref, "severity": "Error", "message": "Missing BusinessName / Supplier Name."})
-				continue
-			valid += 1
-		return {"total_records": len(main_rows), "valid_records": valid, "logs": logs}
-
-	# Invoice stages: Purchase Invoice or Sales Invoice
-	if stage == "Sales Invoice":
-		no_col = "InvoiceNo"
-		party_col = "ClientBusinessName"
-	elif stage == "Purchase Invoice":
-		no_col = "PurchaseOrderNo"
-		party_col = "SupplierBusinessName"
-	else:
-		raise ValueError(f"Unsupported stage: {stage}")
-
+	no_col, party_col = _resolve_invoice_columns(stage, main_headers)
 	req_main = {no_col, party_col, "Date", "CurrencyCode", "SummaryTotal"}
 	req_child = {"no", "item", "unit_price", "quantity", "subtotal", "subtotal_without_tax", "tax1_value", "tax1_amount"}
 
 	missing_main = req_main - set(main_headers)
 	missing_child = req_child - set(child_headers)
 	if missing_main:
-		logs.append({"stage": stage, "row_number": 0, "reference_no": "", "severity": "Error", "message": f"Missing main columns: {', '.join(sorted(missing_main))}"})
+		logs.append({
+			"stage": _(stage),
+			"row_number": 0,
+			"reference_no": "",
+			"severity": "Error",
+			"message": _("Missing required columns in main invoices file: {0}").format(", ".join(sorted(missing_main))),
+		})
 	if missing_child:
-		logs.append({"stage": stage, "row_number": 0, "reference_no": "", "severity": "Error", "message": f"Missing items columns: {', '.join(sorted(missing_child))}"})
+		logs.append({
+			"stage": _(stage),
+			"row_number": 0,
+			"reference_no": "",
+			"severity": "Error",
+			"message": _("Missing required columns in invoice items file: {0}").format(", ".join(sorted(missing_child))),
+		})
 	if missing_main or missing_child:
 		return {"total_records": len(main_rows), "valid_records": 0, "logs": logs}
 
@@ -298,13 +342,23 @@ def validate_stage_data(
 		summary_total = flt(inv_row.get("SummaryTotal"), 2)
 		summary_discount = flt(inv_row.get("SummaryDiscount"), 2)
 
-		if not inv_no or not party_name or not parsed_date or not currency:
+		missing_reasons = []
+		if not inv_no:
+			missing_reasons.append(_("Invoice number is empty"))
+		if not party_name:
+			missing_reasons.append(_("Customer/Supplier name is empty"))
+		if not parsed_date:
+			missing_reasons.append(_("Invalid or empty date ({0})").format(inv_row.get("Date") or ""))
+		if not currency:
+			missing_reasons.append(_("Currency code is empty"))
+
+		if missing_reasons:
 			logs.append({
-				"stage": stage,
+				"stage": _(stage),
 				"row_number": idx,
 				"reference_no": inv_no,
 				"severity": "Error",
-				"message": f"Missing required field(s): no={inv_no}, party={party_name}, date={inv_row.get('Date')}, currency={currency}",
+				"message": _("Invoice {0}: {1}.").format(inv_no or idx, ", ".join(missing_reasons)),
 			})
 			continue
 
@@ -312,39 +366,43 @@ def validate_stage_data(
 		rel_items = items_by_no.get(inv_no, [])
 		if not rel_items:
 			logs.append({
-				"stage": stage,
+				"stage": _(stage),
 				"row_number": idx,
 				"reference_no": inv_no,
 				"severity": "Error",
-				"message": f"Invoice {inv_no} has no matching item rows.",
+				"message": _("Invoice {0} has no items in the items file.").format(inv_no),
 			})
 			continue
 
+		is_ret = is_return_invoice_row(inv_row, rel_items, force_return=force_return)
 		row_has_error = False
 		sum_item_subtotal = 0.0
+
 		for item_row in rel_items:
 			qty = flt(item_row.get("quantity"), 4)
-			sub_nt = flt(item_row.get("subtotal_without_tax"), 4)
-			sub = flt(item_row.get("subtotal"), 4)
-			t1_amt = flt(item_row.get("tax1_amount"), 4)
-			t2_amt = flt(item_row.get("tax2_amount"), 4)
-			if qty <= 0:
+			sub_nt = abs(flt(item_row.get("subtotal_without_tax"), 4))
+			sub = abs(flt(item_row.get("subtotal"), 4))
+			t1_amt = abs(flt(item_row.get("tax1_amount"), 4))
+			t2_amt = abs(flt(item_row.get("tax2_amount"), 4))
+			if qty == 0 or (not is_ret and qty < 0):
 				logs.append({
-					"stage": stage,
+					"stage": _(stage),
 					"row_number": idx,
 					"reference_no": inv_no,
 					"severity": "Error",
-					"message": f"Item '{item_row.get('item')}' has non-positive quantity ({qty}).",
+					"message": _("Invoice {0}, item '{1}': invalid quantity ({2}).").format(inv_no, item_row.get("item"), qty),
 				})
 				row_has_error = True
 				break
 			if abs((sub_nt + t1_amt + t2_amt) - sub) > 0.05:
 				logs.append({
-					"stage": stage,
+					"stage": _(stage),
 					"row_number": idx,
 					"reference_no": inv_no,
 					"severity": "Error",
-					"message": f"Item '{item_row.get('item')}' tax math mismatch: net({sub_nt}) + tax({t1_amt + t2_amt}) != subtotal({sub}).",
+					"message": _("Invoice {0}, item '{1}': net amount ({2}) + tax ({3}) does not equal item subtotal ({4}).").format(
+						inv_no, item_row.get("item"), sub_nt, t1_amt + t2_amt, sub
+					),
 				})
 				row_has_error = True
 				break
@@ -353,27 +411,32 @@ def validate_stage_data(
 		if row_has_error:
 			continue
 
-		expected_total = flt(sum_item_subtotal - summary_discount, 2)
-		if abs(expected_total - summary_total) > 0.15:
+		expected_total = flt(sum_item_subtotal - abs(summary_discount), 2)
+		if abs(expected_total - abs(summary_total)) > 0.15:
 			logs.append({
-				"stage": stage,
+				"stage": _(stage),
 				"row_number": idx,
 				"reference_no": inv_no,
 				"severity": "Error",
-				"message": f"Total mismatch: sum(items)({sum_item_subtotal:.2f}) - discount({summary_discount:.2f}) = {expected_total:.2f} != SummaryTotal({summary_total:.2f}).",
+				"message": _("Invoice {0}: sum of items ({1}) minus discount ({2}) = {3}, which does not match Daftra total ({4}).").format(
+					inv_no, round(sum_item_subtotal, 2), round(abs(summary_discount), 2), expected_total, abs(summary_total)
+				),
 			})
 			continue
 
 		valid += 1
 
-	orphan_nos = set(items_by_no.keys()) - header_nos - {""}
+	orphan_nos = sorted(set(items_by_no.keys()) - header_nos - {""})
 	if orphan_nos:
+		sample = ", ".join(orphan_nos[:5])
 		logs.append({
-			"stage": stage,
+			"stage": _(stage),
 			"row_number": 0,
-			"reference_no": ", ".join(sorted(orphan_nos)[:5]),
+			"reference_no": sample,
 			"severity": "Warning",
-			"message": f"{len(orphan_nos)} item group(s) in items file have no matching header invoice.",
+			"message": _("{0} invoice number(s) exist in the items file without a valid header invoice (e.g. {1}).").format(
+				len(orphan_nos), sample
+			),
 		})
 
 	return {"total_records": len(main_rows), "valid_records": valid, "logs": logs}

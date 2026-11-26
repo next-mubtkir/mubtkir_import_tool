@@ -1,0 +1,136 @@
+Mubtkir Import Tool,أداة استيراد دفترة
+Mubtkir Import Log,سجل استيراد دفترة
+Backup Notice,تنبيه النسخة الاحتياطية
+Import Configuration,إعدادات الاستيراد
+Import Mode,وضع الاستيراد
+Single DocType,استيراد نوع واحد
+Full Migration,ترحيل كامل (جميع المراحل)
+Reference Doctype,نوع المستند المستهدف
+Is Return / Credit-Debit Note,فاتورة مرتجعة (إشعار دائن / مدين)
+Enable if the uploaded file contains Return Invoices (Credit/Debit Notes).,فعّل هذا الخيار إذا كان الملف المرفوع يحتوي على فواتير مرتجعة.
+Company,الشركة
+Tax Mode,طريقة احتساب الضريبة
+"Select how Daftra prices are treated: Tax Exclusive, Tax Inclusive, or Auto-detect per row.",اختر طريقة احتساب أسعار دفترة: غير شامل الضريبة، شامل الضريبة، أو تلقائي حسب كل صف.
+Tax Exclusive,غير شامل الضريبة
+Tax Inclusive,شامل الضريبة
+Both (Auto-detect per row),كلاهما (تحديد تلقائي حسب الصف)
+Sales Taxes and Charges Template,قالب ضرائب المبيعات
+Purchase Taxes and Charges Template,قالب ضرائب المشتريات
+Submit Invoices Automatically,اعتماد الفواتير تلقائياً
+Update Stock on Invoices,تحديث المخزون في الفواتير
+Skip Existing Records,تخطي السجلات الموجودة مسبقاً
+Delete Attached Files After (Days),حذف الملفات المرفقة تلقائياً بعد (أيام)
+Automatically delete attached files after this many days from completion (0 = keep forever).,حذف الملفات المرفقة تلقائياً بعد هذه المدة من اكتمال الاستيراد (0 = عدم الحذف).
+Upload Files (ZIP / CSV / Excel),رفع الملفات (ZIP / CSV / Excel)
+Main File (or Daftra ZIP),الملف الرئيسي (أو ملف ZIP من دفترة)
+Child / Items / Contacts File,ملف التفاصيل / الأصناف / جهات الاتصال
+Optional if Main File is a Daftra ZIP archive or Products/Items file.,اختياري إذا كان الملف الرئيسي مضغوطاً (ZIP) أو ملف منتجات.
+Full Migration Files (Products -> Customers -> Suppliers -> Purchase -> Sales),ملفات الترحيل الكامل (المنتجات ← العملاء ← الموردين ← المشتريات ← المبيعات)
+1. Products File (CSV / ZIP),1. ملف المنتجات (CSV / ZIP)
+2. Customers File (ZIP / CSV),2. ملف العملاء (ZIP / CSV)
+"2b. Customer Contacts (CSV, if not ZIP)",2ب. جهات اتصال العملاء (CSV إذا لم يكن مضغوطاً)
+Only needed if Customers file is CSV instead of ZIP.,مطلوب فقط إذا رفعت ملف العملاء بصيغة CSV بدلاً من ZIP.
+3. Suppliers File (ZIP / CSV),3. ملف الموردين (ZIP / CSV)
+"3b. Supplier Contacts (CSV, if not ZIP)",3ب. جهات اتصال الموردين (CSV إذا لم يكن مضغوطاً)
+Only needed if Suppliers file is CSV instead of ZIP.,مطلوب فقط إذا رفعت ملف الموردين بصيغة CSV بدلاً من ZIP.
+4. Purchase Invoices (ZIP / CSV),4. فواتير المشتريات (ZIP / CSV)
+"4b. Purchase Items (CSV, if not ZIP)",4ب. أصناف فواتير المشتريات (CSV إذا لم يكن مضغوطاً)
+Only needed if Purchase Invoices is a CSV instead of ZIP.,مطلوب فقط إذا رفعت فواتير المشتريات بصيغة CSV بدلاً من ZIP.
+4c. Purchase Returns (ZIP / CSV),4ج. مرتجعات المشتريات (ZIP / CSV)
+Optional: Daftra Purchase Return / Debit Notes (ZIP / CSV).,اختياري: ملف مرتجعات المشتريات / الإشعارات المدينة من دفترة.
+"4d. Purchase Return Items (CSV, if not ZIP)",4د. أصناف مرتجعات المشتريات (CSV إذا لم يكن مضغوطاً)
+Only needed if Purchase Returns is a CSV instead of ZIP.,مطلوب فقط إذا رفعت مرتجعات المشتريات بصيغة CSV بدلاً من ZIP.
+5. Sales Invoices (ZIP / CSV),5. فواتير المبيعات (ZIP / CSV)
+"5b. Sales Items (CSV, if not ZIP)",5ب. أصناف فواتير المبيعات (CSV إذا لم يكن مضغوطاً)
+Only needed if Sales Invoices is a CSV instead of ZIP.,مطلوب فقط إذا رفعت فواتير المبيعات بصيغة CSV بدلاً من ZIP.
+5c. Sales Returns (ZIP / CSV),5ج. مرتجعات المبيعات (ZIP / CSV)
+Optional: Daftra Sales Return / Credit Notes (ZIP / CSV).,اختياري: ملف مرتجعات المبيعات / الإشعارات الدائنة من دفترة.
+"5d. Sales Return Items (CSV, if not ZIP)",5د. أصناف مرتجعات المبيعات (CSV إذا لم يكن مضغوطاً)
+Only needed if Sales Returns is a CSV instead of ZIP.,مطلوب فقط إذا رفعت مرتجعات المبيعات بصيغة CSV بدلاً من ZIP.
+Validation & Import Status,حالة الفحص والاستيراد
+Status,الحالة
+Draft,مسودة
+Validating,جاري الفحص
+Validated,تم الفحص بنجاح
+Validation Failed,فشل الفحص (توجد أخطاء)
+Importing,جاري الاستيراد
+Completed,مكتمل
+Completed with Errors,مكتمل مع وجود أخطاء
+Failed,فشل الاستيراد
+Total Records,إجمالي السجلات
+Valid Records,السجلات السليمة
+Imported Records,السجلات المستوردة
+Skipped Records,السجلات المتخطاة
+Failed Records,السجلات الفاشلة
+Summary,ملخص العملية
+Validation & Import Logs,سجل الفحص والأخطاء
+Stage,المرحلة
+Row,الصف
+Daftra Ref,مرجع دفترة
+Severity,النوع
+Message,التفاصيل
+Error,خطأ
+Warning,تحذير
+Info,معلومة
+Item,المنتجات
+Customer,العملاء
+Supplier,الموردين
+Purchase Invoice,فواتير المشتريات
+Purchase Return,مرتجعات المشتريات
+Sales Invoice,فواتير المبيعات
+Sales Return,مرتجعات المبيعات
+Important Notice Before Import:,تنبيه هام قبل البدء في الاستيراد:
+It is strongly recommended to take a site backup before starting the import and between each stage:,يُنصح بشدة بأخذ نسخة احتياطية (Backup) من الموقع قبل البدء في الاستيراد وبين كل مرحلة وأخرى:
+1. Products (Items) -> 2. Customers & Suppliers -> 3. Purchase Invoices -> 4. Sales Invoices,1. المنتجات ← 2. العملاء والموردين ← 3. فواتير المشتريات ← 4. فواتير المبيعات
+So you can easily restore the backup if needed.,حتى تتمكن من استرجاع النسخة بسهولة عند الحاجة.
+Validate Data,فحص البيانات
+"Validating files, taxes, and totals...",جاري فحص الملفات والضرائب والإجماليات...
+Validation Result,نتيجة فحص البيانات
+Start Import,بدء الاستيراد
+Have you taken a site backup before starting the import? Invoices will be saved and submitted automatically according to your settings.,هل قمت بأخذ نسخة احتياطية (Backup) من الموقع قبل بدء الاستيراد؟ سيتم حفظ الفواتير واعتمادها تلقائياً وفق الإعدادات المحددة.
+Enqueueing background import job...,جاري تشغيل مهمة الاستيراد في الخلفية...
+Import started in the background; progress will update automatically.,بدأ الاستيراد في الخلفية، وسيتم تحديث التقدم تلقائياً.
+Importing {0},جاري استيراد {0}
+{0} / {1},{0} / {1}
+Please select a Reference Doctype.,يرجى تحديد نوع المستند المستهدف.
+Attached file not found on disk: {0},الملف المرفق غير موجود على الخادم: {0}
+Please attach the Main File (or Daftra ZIP).,يرجى إرفاق الملف الرئيسي (أو ملف ZIP من دفترة).
+Please attach at least one Daftra file to validate or import.,يرجى إرفاق ملف واحد على الأقل من دفترة للفحص أو الاستيراد.
+Not permitted to validate import files.,لا تملك صلاحية فحص ملفات الاستيراد.
+{0}: {1}/{2} valid ({3} errors),{0}: {1}/{2} سليم ({3} أخطاء)
+Not permitted to start import.,لا تملك صلاحية بدء الاستيراد.
+Import is already running in the background.,عملية الاستيراد قيد التشغيل بالفعل في الخلفية.
+Please select a Sales Taxes and Charges Template before importing Sales Invoices.,يرجى تحديد قالب ضرائب المبيعات قبل استيراد فواتير المبيعات.
+Please select a Purchase Taxes and Charges Template before importing Purchase Invoices.,يرجى تحديد قالب ضرائب المشتريات قبل استيراد فواتير المشتريات.
+Import job enqueued.,تمت جدولة مهمة الاستيراد في الخلفية.
+"{0}: imported={1}, skipped={2}, failed={3}",{0}: مستورد={1}، متخطى={2}، فاشل={3}
+Fatal error: {0},خطأ غير متوقع: {0}
+"Unsupported file format: {0}. Please upload .zip, .csv, or .xlsx.",صيغة الملف غير مدعومة: {0}. يرجى رفع ملف .zip أو .csv أو .xlsx.
+File not found for {0}: {1},الملف غير موجود لمرحلة {0}: {1}
+Could not find main CSV inside ZIP for {0}.,تعذر العثور على ملف CSV الرئيسي داخل الملف المضغوط لمرحلة {0}.
+Child file not found for {0}: {1},ملف التفاصيل غير موجود لمرحلة {0}: {1}
+Unsupported stage: {0},مرحلة غير مدعومة: {0}
+Missing required columns in Products file: {0},أعمدة مطلوبة مفقودة في ملف المنتجات: {0}
+Product code or product name is empty.,رمز المنتج أو اسم المنتج فارغ.
+Duplicate product code '{0}' in file.,رمز المنتج '{0}' مكرر داخل الملف.
+Missing required columns: {0},أعمدة مطلوبة مفقودة: {0}
+Business name is empty for record {0}.,الاسم التجاري فارغ للسجل رقم {0}.
+Missing required columns in main invoices file: {0},أعمدة مطلوبة مفقودة في ملف الفواتير الرئيسي: {0}
+Missing required columns in invoice items file: {0},أعمدة مطلوبة مفقودة في ملف أصناف الفواتير: {0}
+Invoice number is empty,رقم الفاتورة فارغ
+Customer/Supplier name is empty,اسم العميل/المورد فارغ
+Invalid or empty date ({0}),التاريخ فارغ أو غير صالح ({0})
+Currency code is empty,رمز العملة فارغ
+Invoice {0}: {1}.,الفاتورة رقم {0}: {1}.
+Invoice {0} has no items in the items file.,الفاتورة رقم {0} لا تحتوي على أصناف في ملف الأصناف.
+"Invoice {0}, item '{1}': invalid quantity ({2}).",الفاتورة رقم {0}، الصنف '{1}': الكمية غير صالحة ({2}).
+"Invoice {0}, item '{1}': net amount ({2}) + tax ({3}) does not equal item subtotal ({4}).",الفاتورة رقم {0}، الصنف '{1}': الصافي ({2}) + الضريبة ({3}) لا يساوي إجمالي الصنف ({4}).
+"Invoice {0}: sum of items ({1}) minus discount ({2}) = {3}, which does not match Daftra total ({4}).",الفاتورة رقم {0}: مجموع الأصناف ({1}) ناقص الخصم ({2}) = {3}، ولا يطابق إجمالي دفترة ({4}).
+{0} invoice number(s) exist in the items file without a valid header invoice (e.g. {1}).,يوجد {0} رقم فاتورة في ملف الأصناف بدون فاتورة صالحة في الملف الرئيسي (مثل: {1}).
+Product code and name are both empty.,رمز المنتج واسم المنتج فارغان.
+Customer name is empty.,اسم العميل فارغ.
+Supplier name is empty.,اسم المورد فارغ.
+Invalid invoice stage: {0},مرحلة فاتورة غير صالحة: {0}
+"Invoice {0}: missing required fields (customer/supplier, date, currency, or items).",الفاتورة رقم {0}: بيانات أساسية مفقودة (العميل/المورد أو التاريخ أو العملة أو الأصناف).
+Please select a {0} to provide the tax account.,يرجى تحديد {0} لتوفير حساب الضريبة.
+"Invoice {0}: total mismatch (ERPNext={1}, Daftra={2}).",الفاتورة رقم {0}: عدم تطابق الإجمالي (مبتكر={1}، دفترة={2}).

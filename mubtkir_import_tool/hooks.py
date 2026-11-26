@@ -151,23 +151,11 @@ app_license = "mit"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"mubtkir_import_tool.tasks.all"
-# 	],
-# 	"daily": [
-# 		"mubtkir_import_tool.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"mubtkir_import_tool.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"mubtkir_import_tool.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"mubtkir_import_tool.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"daily": [
+		"mubtkir_import_tool.tasks.cleanup_old_import_files"
+	],
+}
 
 # Testing
 # -------

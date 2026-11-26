@@ -4,6 +4,7 @@
 import os
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils.file_manager import get_file_path
 
@@ -16,46 +17,63 @@ from .importers import (
 )
 
 MAX_LOG_ROWS = 500
-STAGE_ORDER = ("Item", "Customer", "Supplier", "Purchase Invoice", "Sales Invoice")
 
 
 class MubtkirImportTool(Document):
 	def validate(self):
 		if self.import_mode == "Single DocType" and not self.reference_doctype:
-			frappe.throw("Please select a Reference Doctype.")
+			frappe.throw(_("Please select a Reference Doctype."))
+
+	def on_update(self):
+		# Ensure all files attached to this document are public
+		private_files = frappe.get_all(
+			"File",
+			filters={
+				"attached_to_doctype": self.doctype,
+				"attached_to_name": self.name,
+				"is_private": 1,
+			},
+			pluck="name",
+		)
+		for fname in private_files:
+			fdoc = frappe.get_doc("File", fname)
+			fdoc.is_private = 0
+			fdoc.save(ignore_permissions=True)
 
 	def _resolve_path(self, file_url: str | None) -> str | None:
 		if not file_url:
 			return None
 		path = get_file_path(file_url)
 		if not os.path.exists(path):
-			frappe.throw(f"Attached file not found on disk: {file_url}")
+			frappe.throw(_("Attached file not found on disk: {0}").format(file_url))
 		return path
 
-	def _get_configured_stages(self) -> list[tuple[str, str, str | None]]:
-		"""Return list of (stage_name, main_file_path, child_file_path) in strict execution order."""
-		stages: list[tuple[str, str, str | None]] = []
+	def _get_configured_stages(self) -> list[tuple[str, str, str | None, bool]]:
+		"""Return list of (stage_name, main_file_path, child_file_path, force_return) in strict order."""
+		stages: list[tuple[str, str, str | None, bool]] = []
 		if self.import_mode == "Single DocType":
 			main_path = self._resolve_path(self.main_file)
 			if not main_path:
-				frappe.throw("Please attach the Main File (or Daftra ZIP).")
+				frappe.throw(_("Please attach the Main File (or Daftra ZIP)."))
 			child_path = self._resolve_path(self.child_file)
-			stages.append((self.reference_doctype, main_path, child_path))
+			stages.append((self.reference_doctype, main_path, child_path, bool(self.is_return_import)))
 			return stages
 
 		stage_map = [
-			("Item", self.products_file, None),
-			("Customer", self.customers_file, None),
-			("Supplier", self.suppliers_file, None),
-			("Purchase Invoice", self.purchase_invoices_file, self.purchase_items_file),
-			("Sales Invoice", self.sales_invoices_file, self.sales_items_file),
+			("Item", self.products_file, None, False),
+			("Customer", self.customers_file, self.customers_contacts_file, False),
+			("Supplier", self.suppliers_file, self.suppliers_contacts_file, False),
+			("Purchase Invoice", self.purchase_invoices_file, self.purchase_items_file, False),
+			("Purchase Return", self.purchase_returns_file, self.purchase_returns_items_file, True),
+			("Sales Invoice", self.sales_invoices_file, self.sales_items_file, False),
+			("Sales Return", self.sales_returns_file, self.sales_returns_items_file, True),
 		]
-		for stage, main_url, child_url in stage_map:
+		for stage, main_url, child_url, force_ret in stage_map:
 			if main_url:
-				stages.append((stage, self._resolve_path(main_url), self._resolve_path(child_url)))
+				stages.append((stage, self._resolve_path(main_url), self._resolve_path(child_url), force_ret))
 
 		if not stages:
-			frappe.throw("Please attach at least one Daftra file to validate or import.")
+			frappe.throw(_("Please attach at least one Daftra file to validate or import."))
 		return stages
 
 	def _append_logs(self, logs: list[dict]):
@@ -68,7 +86,7 @@ class MubtkirImportTool(Document):
 	def validate_files(self):
 		"""Dry-run validation of all attached Daftra files without writing target records."""
 		if not self.has_permission("write"):
-			frappe.throw("Not permitted to validate import files.", frappe.PermissionError)
+			frappe.throw(_("Not permitted to validate import files."), frappe.PermissionError)
 
 		stages = self._get_configured_stages()
 		self.status = "Validating"
@@ -79,19 +97,22 @@ class MubtkirImportTool(Document):
 		error_count = 0
 		summary_lines: list[str] = []
 
-		for stage, main_path, child_path in stages:
+		for stage, main_path, child_path, force_ret in stages:
 			res = validate_stage_data(
 				stage=stage,
 				main_file_path=main_path,
 				child_file_path=child_path,
 				tax_mode=self.tax_mode or "Both (Auto-detect per row)",
+				force_return=force_ret,
 			)
 			total_all += res["total_records"]
 			valid_all += res["valid_records"]
 			stage_errors = sum(1 for l in res["logs"] if l["severity"] == "Error")
 			error_count += stage_errors
 			summary_lines.append(
-				f"{stage}: {res['valid_records']}/{res['total_records']} valid ({stage_errors} errors)"
+				_("{0}: {1}/{2} valid ({3} errors)").format(
+					_(stage), res["valid_records"], res["total_records"], stage_errors
+				)
 			)
 			self._append_logs(res["logs"])
 
@@ -112,17 +133,16 @@ class MubtkirImportTool(Document):
 	def start_import(self):
 		"""Enqueue the import job in the background long queue."""
 		if not self.has_permission("write"):
-			frappe.throw("Not permitted to start import.", frappe.PermissionError)
+			frappe.throw(_("Not permitted to start import."), frappe.PermissionError)
 		if self.status == "Importing":
-			frappe.throw("Import is already running in the background.")
+			frappe.throw(_("Import is already running in the background."))
 
-		# Ensure files exist and tax templates are configured if invoices are present
 		stages = self._get_configured_stages()
 		stage_names = {s[0] for s in stages}
-		if "Sales Invoice" in stage_names and not self.sales_taxes_and_charges_template:
-			frappe.throw("Please select a Sales Taxes and Charges Template before importing Sales Invoices.")
-		if "Purchase Invoice" in stage_names and not self.purchase_taxes_and_charges:
-			frappe.throw("Please select a Purchase Taxes and Charges Template before importing Purchase Invoices.")
+		if ({"Sales Invoice", "Sales Return"} & stage_names) and not self.sales_taxes_and_charges_template:
+			frappe.throw(_("Please select a Sales Taxes and Charges Template before importing Sales Invoices."))
+		if ({"Purchase Invoice", "Purchase Return"} & stage_names) and not self.purchase_taxes_and_charges:
+			frappe.throw(_("Please select a Purchase Taxes and Charges Template before importing Purchase Invoices."))
 
 		self.status = "Importing"
 		self.imported_records = 0
@@ -141,7 +161,7 @@ class MubtkirImportTool(Document):
 			job_id=f"mubtkir_import_{self.name}",
 			deduplicate=True,
 		)
-		return {"status": "Importing", "message": "Import job enqueued."}
+		return {"status": "Importing", "message": _("Import job enqueued.")}
 
 	def run_import_job(self):
 		"""Background worker method executing stages in strict dependency order."""
@@ -154,13 +174,13 @@ class MubtkirImportTool(Document):
 			summary_lines: list[str] = []
 			all_logs: list[dict] = []
 
-			for stage, main_path, child_path in stages:
+			for stage, main_path, child_path, force_ret in stages:
 				def publish_progress(current, total, st=stage):
 					frappe.publish_realtime(
 						"mubtkir_import_progress",
 						{
 							"docname": self.name,
-							"stage": st,
+							"stage": _(st),
 							"current": current,
 							"total": total,
 						},
@@ -173,9 +193,9 @@ class MubtkirImportTool(Document):
 					res = import_customers(main_path, child_path, skip_existing=bool(self.skip_existing), progress_cb=publish_progress)
 				elif stage == "Supplier":
 					res = import_suppliers(main_path, child_path, skip_existing=bool(self.skip_existing), progress_cb=publish_progress)
-				elif stage == "Purchase Invoice":
+				elif stage in ("Purchase Invoice", "Purchase Return"):
 					res = import_invoices(
-						stage="Purchase Invoice",
+						stage=stage,
 						main_file_path=main_path,
 						child_file_path=child_path,
 						company=self.company,
@@ -184,11 +204,12 @@ class MubtkirImportTool(Document):
 						submit_invoices=bool(self.submit_invoices),
 						update_stock=bool(self.update_stock),
 						skip_existing=bool(self.skip_existing),
+						force_return=force_ret,
 						progress_cb=publish_progress,
 					)
-				elif stage == "Sales Invoice":
+				elif stage in ("Sales Invoice", "Sales Return"):
 					res = import_invoices(
-						stage="Sales Invoice",
+						stage=stage,
 						main_file_path=main_path,
 						child_file_path=child_path,
 						company=self.company,
@@ -197,6 +218,7 @@ class MubtkirImportTool(Document):
 						submit_invoices=bool(self.submit_invoices),
 						update_stock=bool(self.update_stock),
 						skip_existing=bool(self.skip_existing),
+						force_return=force_ret,
 						progress_cb=publish_progress,
 					)
 				else:
@@ -208,7 +230,9 @@ class MubtkirImportTool(Document):
 				total_failed += res["failed"]
 				all_logs.extend(res["logs"])
 				summary_lines.append(
-					f"{stage}: imported={res['imported']}, skipped={res['skipped']}, failed={res['failed']}"
+					_("{0}: imported={1}, skipped={2}, failed={3}").format(
+						_(stage), res["imported"], res["skipped"], res["failed"]
+					)
 				)
 
 			self.reload()
@@ -226,7 +250,7 @@ class MubtkirImportTool(Document):
 			frappe.log_error(frappe.get_traceback(), f"Mubtkir Import Failed: {self.name}")
 			self.reload()
 			self.status = "Failed"
-			self.validation_summary = f"Fatal error: {str(exc)[:300]}"
+			self.validation_summary = _("Fatal error: {0}").format(str(exc)[:300])
 			self.save(ignore_permissions=True)
 			frappe.db.commit()
 		finally:

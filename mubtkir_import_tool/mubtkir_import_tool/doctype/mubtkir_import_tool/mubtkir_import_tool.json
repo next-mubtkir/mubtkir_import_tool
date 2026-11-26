@@ -10,6 +10,7 @@
   "section_mode",
   "import_mode",
   "reference_doctype",
+  "is_return_import",
   "company",
   "column_break_settings",
   "tax_mode",
@@ -18,18 +19,25 @@
   "submit_invoices",
   "update_stock",
   "skip_existing",
+  "auto_delete_files_after_days",
   "section_single_files",
   "main_file",
   "child_file",
   "section_full_files",
   "products_file",
   "customers_file",
+  "customers_contacts_file",
   "suppliers_file",
+  "suppliers_contacts_file",
   "column_break_full_files",
   "purchase_invoices_file",
   "purchase_items_file",
+  "purchase_returns_file",
+  "purchase_returns_items_file",
   "sales_invoices_file",
   "sales_items_file",
+  "sales_returns_file",
+  "sales_returns_items_file",
   "section_status",
   "status",
   "total_records",
@@ -38,7 +46,9 @@
   "imported_records",
   "skipped_records",
   "failed_records",
+  "section_summary",
   "validation_summary",
+  "section_logs",
   "import_logs"
  ],
  "fields": [
@@ -67,6 +77,14 @@
    "label": "Reference Doctype",
    "mandatory_depends_on": "eval:doc.import_mode=='Single DocType'",
    "options": "DocType"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.import_mode=='Single DocType' && ['Sales Invoice','Purchase Invoice'].includes(doc.reference_doctype)",
+   "description": "Enable if the uploaded file contains Return Invoices (Credit/Debit Notes).",
+   "fieldname": "is_return_import",
+   "fieldtype": "Check",
+   "label": "Is Return / Credit-Debit Note"
   },
   {
    "fieldname": "company",
@@ -118,6 +136,13 @@
    "label": "Skip Existing Records"
   },
   {
+   "default": "7",
+   "description": "Automatically delete attached files after this many days from completion (0 = keep forever).",
+   "fieldname": "auto_delete_files_after_days",
+   "fieldtype": "Int",
+   "label": "Delete Attached Files After (Days)"
+  },
+  {
    "depends_on": "eval:doc.import_mode=='Single DocType'",
    "fieldname": "section_single_files",
    "fieldtype": "Section Break",
@@ -138,7 +163,7 @@
    "depends_on": "eval:doc.import_mode=='Full Migration'",
    "fieldname": "section_full_files",
    "fieldtype": "Section Break",
-   "label": "Full Migration Files (Order: Products -> Customers -> Suppliers -> Purchase Invoices -> Sales Invoices)"
+   "label": "Full Migration Files (Products -> Customers -> Suppliers -> Purchase -> Sales)"
   },
   {
    "fieldname": "products_file",
@@ -151,9 +176,21 @@
    "label": "2. Customers File (ZIP / CSV)"
   },
   {
+   "description": "Only needed if Customers file is CSV instead of ZIP.",
+   "fieldname": "customers_contacts_file",
+   "fieldtype": "Attach",
+   "label": "2b. Customer Contacts (CSV, if not ZIP)"
+  },
+  {
    "fieldname": "suppliers_file",
    "fieldtype": "Attach",
    "label": "3. Suppliers File (ZIP / CSV)"
+  },
+  {
+   "description": "Only needed if Suppliers file is CSV instead of ZIP.",
+   "fieldname": "suppliers_contacts_file",
+   "fieldtype": "Attach",
+   "label": "3b. Supplier Contacts (CSV, if not ZIP)"
   },
   {
    "fieldname": "column_break_full_files",
@@ -171,6 +208,18 @@
    "label": "4b. Purchase Items (CSV, if not ZIP)"
   },
   {
+   "description": "Optional: Daftra Purchase Return / Debit Notes (ZIP / CSV).",
+   "fieldname": "purchase_returns_file",
+   "fieldtype": "Attach",
+   "label": "4c. Purchase Returns (ZIP / CSV)"
+  },
+  {
+   "description": "Only needed if Purchase Returns is a CSV instead of ZIP.",
+   "fieldname": "purchase_returns_items_file",
+   "fieldtype": "Attach",
+   "label": "4d. Purchase Return Items (CSV, if not ZIP)"
+  },
+  {
    "fieldname": "sales_invoices_file",
    "fieldtype": "Attach",
    "label": "5. Sales Invoices (ZIP / CSV)"
@@ -180,6 +229,18 @@
    "fieldname": "sales_items_file",
    "fieldtype": "Attach",
    "label": "5b. Sales Items (CSV, if not ZIP)"
+  },
+  {
+   "description": "Optional: Daftra Sales Return / Credit Notes (ZIP / CSV).",
+   "fieldname": "sales_returns_file",
+   "fieldtype": "Attach",
+   "label": "5c. Sales Returns (ZIP / CSV)"
+  },
+  {
+   "description": "Only needed if Sales Returns is a CSV instead of ZIP.",
+   "fieldname": "sales_returns_items_file",
+   "fieldtype": "Attach",
+   "label": "5d. Sales Return Items (CSV, if not ZIP)"
   },
   {
    "fieldname": "section_status",
@@ -235,10 +296,20 @@
    "read_only": 1
   },
   {
+   "fieldname": "section_summary",
+   "fieldtype": "Section Break",
+   "label": "Summary"
+  },
+  {
    "fieldname": "validation_summary",
    "fieldtype": "Small Text",
    "label": "Summary",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_logs",
+   "fieldtype": "Section Break",
+   "label": "Validation & Import Logs"
   },
   {
    "fieldname": "import_logs",
@@ -250,7 +321,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-11-26 10:45:00.000000",
+ "modified": "2026-11-26 12:15:00.000000",
  "modified_by": "Administrator",
  "module": "Mubtkir Import Tool",
  "name": "Mubtkir Import Tool",
