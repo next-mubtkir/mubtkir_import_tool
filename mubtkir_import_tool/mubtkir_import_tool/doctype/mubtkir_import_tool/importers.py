@@ -98,6 +98,7 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 				flt(row.get("AverageCost"), 4)
 				or flt(row.get("BuyPrice"), 4)
 				or flt(row.get("UnitPrice"), 4)
+				or 0.01
 			)
 			doc.is_stock_item = 1 if row.get("TrackStock") in ("1", "True", "true", "") else 0
 
@@ -482,7 +483,7 @@ def import_invoices(
 						new_item.item_group = default_item_group
 						new_item.stock_uom = default_uom
 						new_item.standard_rate = flt(net_rate, 4)
-						new_item.valuation_rate = flt(net_rate, 4)
+						new_item.valuation_rate = flt(net_rate, 4) or 0.01
 						new_item.description = item_row.get("description") or new_code
 						new_item.insert(ignore_permissions=True)
 					item_code = new_code
