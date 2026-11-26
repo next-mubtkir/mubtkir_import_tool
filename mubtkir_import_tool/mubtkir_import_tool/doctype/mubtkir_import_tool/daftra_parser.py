@@ -123,6 +123,105 @@ def _find_zip_member(
 	return None
 
 
+def _normalize_arabic_flat_returns(
+	stage: str, headers: list[str], rows: list[dict[str, str]]
+) -> tuple[list[str], list[dict[str, str]], list[str], list[dict[str, str]]]:
+	"""
+	Convert Daftra's single-file Arabic Return export (e.g. 'return sales.csv')
+	into standard (main_headers, main_rows, child_headers, child_rows).
+	"""
+	is_purchase = stage in ("Purchase Invoice", "Purchase Return")
+	no_col_out = "PurchaseOrderNo" if is_purchase else "InvoiceNo"
+	party_col_out = "SupplierBusinessName" if is_purchase else "ClientBusinessName"
+
+	grouped: dict[str, list[dict[str, str]]] = {}
+	for r in rows:
+		ref_no = r.get("رقم الارتجاع") or r.get("رقم المرتجع") or r.get("رقم الفاتورة") or ""
+		if not ref_no:
+			continue
+		grouped.setdefault(ref_no, []).append(r)
+
+	main_rows: list[dict[str, str]] = []
+	child_rows: list[dict[str, str]] = []
+
+	for ref_no, group in grouped.items():
+		first = group[0]
+		party = (
+			first.get("شركة المورد")
+			or first.get("المورد")
+			or first.get("شركة العميل")
+			or first.get("اسم العميل بالكامل")
+			or ""
+		)
+		if party.endswith("( )"):
+			party = party[:-3].strip()
+		ret_date = first.get("تاريخ الارتجاع") or first.get("تاريخ الإصدار") or first.get("التاريخ") or ""
+		currency = first.get("العملة") or "SAR"
+		summary_total = flt(first.get("الإجمالي"), 4)
+		summary_discount = flt(first.get("قيمة الخصم") or first.get("الخصمالخصم"), 4)
+
+		sum_up_qty = sum(abs(flt(it.get("سعر الوحدة"), 6)) * abs(flt(it.get("الكمية"), 6)) for it in group)
+		sum_tax = sum(abs(flt(it.get("قيمة الضريبة1"), 6)) + abs(flt(it.get("قيمة الضريبة2"), 6)) for it in group)
+
+		# Detect if unit prices on this return invoice are Tax Inclusive vs Tax Exclusive
+		is_inclusive = (
+			sum_tax > 0
+			and abs((sum_up_qty - abs(summary_discount)) - abs(summary_total))
+			< abs((sum_up_qty + sum_tax - abs(summary_discount)) - abs(summary_total))
+		)
+
+		main_rows.append({
+			no_col_out: ref_no,
+			party_col_out: party,
+			"Date": ret_date,
+			"CurrencyCode": currency,
+			"SummaryTotal": str(summary_total),
+			"SummaryDiscount": str(summary_discount),
+			"Type": "Return",
+		})
+
+		for it in group:
+			up = abs(flt(it.get("سعر الوحدة"), 6))
+			qty = abs(flt(it.get("الكمية"), 6))
+			t1_amt = abs(flt(it.get("قيمة الضريبة1"), 6))
+			t2_amt = abs(flt(it.get("قيمة الضريبة2"), 6))
+			gross_or_net = flt(up * qty, 6)
+			if is_inclusive:
+				sub = gross_or_net
+				sub_nt = flt(gross_or_net - (t1_amt + t2_amt), 6)
+			else:
+				sub_nt = gross_or_net
+				sub = flt(gross_or_net + t1_amt + t2_amt, 6)
+
+			t1_val = round((t1_amt / sub_nt) * 100, 2) if (t1_amt > 0 and sub_nt > 0) else 0.0
+			t2_val = round((t2_amt / sub_nt) * 100, 2) if (t2_amt > 0 and sub_nt > 0) else 0.0
+
+			child_rows.append({
+				"no": ref_no,
+				"item": (it.get("كود المنتج") or it.get("البند") or "").strip(),
+				"description": it.get("الوصف") or it.get("البند") or "",
+				"unit_price": str(up),
+				"quantity": str(qty),
+				"subtotal": str(sub),
+				"subtotal_without_tax": str(sub_nt),
+				"tax1_name": it.get("اسم الضريبة1") or "",
+				"tax1_value": str(t1_val),
+				"tax1_amount": str(t1_amt),
+				"tax2_name": it.get("اسم الضريبة2") or "",
+				"tax2_value": str(t2_val),
+				"tax2_amount": str(t2_amt),
+			})
+
+	main_headers = [no_col_out, party_col_out, "Date", "CurrencyCode", "SummaryTotal", "SummaryDiscount", "Type"]
+	child_headers = [
+		"no", "item", "description", "unit_price", "quantity",
+		"subtotal", "subtotal_without_tax",
+		"tax1_name", "tax1_value", "tax1_amount",
+		"tax2_name", "tax2_value", "tax2_amount",
+	]
+	return main_headers, main_rows, child_headers, child_rows
+
+
 def load_daftra_source(
 	stage: str,
 	main_file_path: str,
@@ -169,6 +268,8 @@ def load_daftra_source(
 			return main_headers, main_rows, child_headers, child_rows
 
 	main_headers, main_rows = read_tabular_file(main_file_path)
+	if not child_file_path and ("رقم الارتجاع" in main_headers or "رقم المرتجع" in main_headers):
+		return _normalize_arabic_flat_returns(stage, main_headers, main_rows)
 	if child_file_path:
 		if not os.path.exists(child_file_path):
 			raise FileNotFoundError(_("Child file not found for {0}: {1}").format(stage, child_file_path))
