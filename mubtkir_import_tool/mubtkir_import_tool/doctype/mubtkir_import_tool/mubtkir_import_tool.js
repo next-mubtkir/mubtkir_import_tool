@@ -143,5 +143,9 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 
 		frm.set_df_property("sales_taxes_and_charges_template", "hidden", !show_sales);
 		frm.set_df_property("purchase_taxes_and_charges", "hidden", !show_purchase);
+
+		frm.set_df_property("default_item_group", "hidden", !(is_full || ["Item", "Sales Invoice", "Purchase Invoice"].includes(ref)));
+		frm.set_df_property("default_customer_group", "hidden", !(is_full || ["Customer", "Sales Invoice"].includes(ref)));
+		frm.set_df_property("default_supplier_group", "hidden", !(is_full || ["Supplier", "Purchase Invoice"].includes(ref)));
 	},
 });

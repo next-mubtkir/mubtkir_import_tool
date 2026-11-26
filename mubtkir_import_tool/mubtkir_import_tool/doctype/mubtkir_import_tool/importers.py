@@ -47,11 +47,11 @@ def _get_tax_template_rows(template_doctype: str, template_name: str) -> list[di
 	)
 
 
-def import_items(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, progress_cb=None) -> dict:
+def import_items(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, item_group: str | None = None, progress_cb=None) -> dict:
 	"""Import Daftra Products CSV/ZIP into ERPNext Item DocType."""
 	_, rows, _, _ = load_daftra_source("Item", main_file_path, child_file_path)
 	existing_codes = set(frappe.get_all("Item", pluck="name"))
-	default_group = frappe.db.get_single_value("Stock Settings", "item_group") or "All Item Groups"
+	default_group = item_group or frappe.db.get_single_value("Stock Settings", "item_group") or "All Item Groups"
 	default_uom = frappe.db.get_single_value("Stock Settings", "stock_uom") or "Nos"
 
 	imported = 0
@@ -124,12 +124,12 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 	return {"total": total, "imported": imported, "skipped": skipped, "failed": failed, "logs": logs}
 
 
-def import_customers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, progress_cb=None) -> dict:
+def import_customers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, customer_group: str | None = None, progress_cb=None) -> dict:
 	"""Import Daftra Clients (+ Client_contacts) into ERPNext Customer DocType."""
 	_, rows, _, contact_rows = load_daftra_source("Customer", main_file_path, child_file_path)
 	contacts_by_no = {c.get("ClientNumber", ""): c for c in contact_rows if c.get("ClientNumber")}
 	existing_names = set(frappe.get_all("Customer", pluck="name"))
-	default_group = frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
+	default_group = customer_group or frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
 	default_territory = frappe.db.get_single_value("Selling Settings", "territory") or "All Territories"
 
 	imported = 0
@@ -203,12 +203,12 @@ def import_customers(main_file_path: str, child_file_path: str | None = None, sk
 	return {"total": total, "imported": imported, "skipped": skipped, "failed": failed, "logs": logs}
 
 
-def import_suppliers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, progress_cb=None) -> dict:
+def import_suppliers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, supplier_group: str | None = None, progress_cb=None) -> dict:
 	"""Import Daftra Suppliers (+ Supplier_contacts) into ERPNext Supplier DocType."""
 	_, rows, _, contact_rows = load_daftra_source("Supplier", main_file_path, child_file_path)
 	contacts_by_no = {c.get("supplier_number", ""): c for c in contact_rows if c.get("supplier_number")}
 	existing_names = set(frappe.get_all("Supplier", pluck="name"))
-	default_group = frappe.db.get_single_value("Buying Settings", "supplier_group") or "All Supplier Groups"
+	default_group = supplier_group or frappe.db.get_single_value("Buying Settings", "supplier_group") or "All Supplier Groups"
 
 	imported = 0
 	skipped = 0
@@ -292,19 +292,25 @@ def _build_item_lookup() -> dict[str, str]:
 	return lookup
 
 
-def _ensure_party(party_type: str, party_name: str, existing_parties: set[str], country_code: str = "") -> str:
+def _ensure_party(
+	party_type: str,
+	party_name: str,
+	existing_parties: set[str],
+	country_code: str = "",
+	party_group: str | None = None,
+) -> str:
 	if party_name in existing_parties:
 		return party_name
 	doc = frappe.new_doc(party_type)
 	if party_type == "Customer":
 		doc.customer_name = party_name[:140]
 		doc.customer_type = "Company"
-		doc.customer_group = frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
+		doc.customer_group = party_group or frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
 		doc.territory = frappe.db.get_single_value("Selling Settings", "territory") or "All Territories"
 	else:
 		doc.supplier_name = party_name[:140]
 		doc.supplier_type = "Company"
-		doc.supplier_group = frappe.db.get_single_value("Buying Settings", "supplier_group") or "All Supplier Groups"
+		doc.supplier_group = party_group or frappe.db.get_single_value("Buying Settings", "supplier_group") or "All Supplier Groups"
 		country = _get_country_name(country_code)
 		if country:
 			doc.country = country
@@ -324,6 +330,9 @@ def import_invoices(
 	update_stock: bool = False,
 	skip_existing: bool = True,
 	force_return: bool = False,
+	default_item_group: str | None = None,
+	default_customer_group: str | None = None,
+	default_supplier_group: str | None = None,
 	progress_cb=None,
 ) -> dict:
 	"""
@@ -374,7 +383,8 @@ def import_invoices(
 
 	existing_parties = set(frappe.get_all(party_type, pluck="name"))
 	item_lookup = _build_item_lookup()
-	default_item_group = frappe.db.get_single_value("Stock Settings", "item_group") or "All Item Groups"
+	default_item_group = default_item_group or frappe.db.get_single_value("Stock Settings", "item_group") or "All Item Groups"
+	party_group = default_customer_group if party_type == "Customer" else default_supplier_group
 	default_uom = frappe.db.get_single_value("Stock Settings", "stock_uom") or "Nos"
 	template_rows = _get_tax_template_rows(template_doctype, tax_template or "")
 
@@ -416,7 +426,7 @@ def import_invoices(
 		sp = f"imp_inv_{idx}"
 		frappe.db.savepoint(sp)
 		try:
-			party = _ensure_party(party_type, party_name, existing_parties, inv_row.get(country_col, ""))
+			party = _ensure_party(party_type, party_name, existing_parties, inv_row.get(country_col, ""), party_group=party_group)
 
 			doc = frappe.new_doc(target_doctype)
 			doc.company = company

@@ -188,11 +188,29 @@ class MubtkirImportTool(Document):
 					)
 
 				if stage == "Item":
-					res = import_items(main_path, child_path, skip_existing=bool(self.skip_existing), progress_cb=publish_progress)
+					res = import_items(
+						main_path,
+						child_path,
+						skip_existing=bool(self.skip_existing),
+						item_group=self.default_item_group,
+						progress_cb=publish_progress,
+					)
 				elif stage == "Customer":
-					res = import_customers(main_path, child_path, skip_existing=bool(self.skip_existing), progress_cb=publish_progress)
+					res = import_customers(
+						main_path,
+						child_path,
+						skip_existing=bool(self.skip_existing),
+						customer_group=self.default_customer_group,
+						progress_cb=publish_progress,
+					)
 				elif stage == "Supplier":
-					res = import_suppliers(main_path, child_path, skip_existing=bool(self.skip_existing), progress_cb=publish_progress)
+					res = import_suppliers(
+						main_path,
+						child_path,
+						skip_existing=bool(self.skip_existing),
+						supplier_group=self.default_supplier_group,
+						progress_cb=publish_progress,
+					)
 				elif stage in ("Purchase Invoice", "Purchase Return"):
 					res = import_invoices(
 						stage=stage,
@@ -205,6 +223,8 @@ class MubtkirImportTool(Document):
 						update_stock=bool(self.update_stock),
 						skip_existing=bool(self.skip_existing),
 						force_return=force_ret,
+						default_item_group=self.default_item_group,
+						default_supplier_group=self.default_supplier_group,
 						progress_cb=publish_progress,
 					)
 				elif stage in ("Sales Invoice", "Sales Return"):
@@ -219,6 +239,8 @@ class MubtkirImportTool(Document):
 						update_stock=bool(self.update_stock),
 						skip_existing=bool(self.skip_existing),
 						force_return=force_ret,
+						default_item_group=self.default_item_group,
+						default_customer_group=self.default_customer_group,
 						progress_cb=publish_progress,
 					)
 				else:

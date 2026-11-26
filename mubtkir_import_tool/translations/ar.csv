@@ -134,3 +134,6 @@ Invalid invoice stage: {0},مرحلة فاتورة غير صالحة: {0}
 "Invoice {0}: missing required fields (customer/supplier, date, currency, or items).",الفاتورة رقم {0}: بيانات أساسية مفقودة (العميل/المورد أو التاريخ أو العملة أو الأصناف).
 Please select a {0} to provide the tax account.,يرجى تحديد {0} لتوفير حساب الضريبة.
 "Invoice {0}: total mismatch (ERPNext={1}, Daftra={2}).",الفاتورة رقم {0}: عدم تطابق الإجمالي (مبتكر={1}، دفترة={2}).
+Default Item Group,مجموعة المنتجات الافتراضية
+Default Customer Group,مجموعة العملاء الافتراضية
+Default Supplier Group,مجموعة الموردين الافتراضية

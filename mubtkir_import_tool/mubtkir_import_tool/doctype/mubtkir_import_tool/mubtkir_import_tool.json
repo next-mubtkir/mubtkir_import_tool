@@ -12,6 +12,9 @@
   "reference_doctype",
   "is_return_import",
   "company",
+  "default_item_group",
+  "default_customer_group",
+  "default_supplier_group",
   "column_break_settings",
   "tax_mode",
   "sales_taxes_and_charges_template",
@@ -91,6 +94,24 @@
    "fieldtype": "Link",
    "label": "Company",
    "options": "Company"
+  },
+  {
+   "fieldname": "default_item_group",
+   "fieldtype": "Link",
+   "label": "Default Item Group",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "default_customer_group",
+   "fieldtype": "Link",
+   "label": "Default Customer Group",
+   "options": "Customer Group"
+  },
+  {
+   "fieldname": "default_supplier_group",
+   "fieldtype": "Link",
+   "label": "Default Supplier Group",
+   "options": "Supplier Group"
   },
   {
    "fieldname": "column_break_settings",
