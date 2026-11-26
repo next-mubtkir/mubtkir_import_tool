@@ -31,6 +31,33 @@ def _get_country_name(country_code: str) -> str | None:
 	return frappe.db.get_value("Country", {"code": code}, "name")
 
 
+def _get_naming_series_options(target_doctype: str) -> list[str]:
+	meta = frappe.get_meta(target_doctype)
+	field = meta.get_field("naming_series")
+	if not field or not field.options:
+		return []
+	return [opt.strip() for opt in field.options.splitlines() if opt.strip()]
+
+
+def _pick_naming_series_by_year(options: list[str], posting_date: str, is_return: bool = False) -> str | None:
+	"""Pick a configured naming_series matching the invoice's posting_date year (e.g. 2025 vs 2026)."""
+	if not options or not posting_date or len(posting_date) < 4:
+		return None
+	year = posting_date[:4]
+	year_matches = [opt for opt in options if year in opt]
+	if not year_matches:
+		return None
+	if is_return:
+		ret_matches = [opt for opt in year_matches if any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
+		if ret_matches:
+			return ret_matches[0]
+	else:
+		non_ret = [opt for opt in year_matches if not any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
+		if non_ret:
+			return non_ret[0]
+	return year_matches[0]
+
+
 def _get_tax_template_rows(template_doctype: str, template_name: str) -> list[dict]:
 	if not template_name:
 		return []
@@ -400,6 +427,7 @@ def import_invoices(
 	party_group = default_customer_group if party_type == "Customer" else default_supplier_group
 	default_uom = frappe.db.get_single_value("Stock Settings", "stock_uom") or "Nos"
 	template_rows = _get_tax_template_rows(template_doctype, tax_template or "")
+	naming_series_options = _get_naming_series_options(target_doctype)
 
 	imported = 0
 	skipped = 0
@@ -447,6 +475,9 @@ def import_invoices(
 			doc.set_posting_time = 1
 			doc.posting_date = posting_date
 			doc.due_date = posting_date
+			chosen_series = _pick_naming_series_by_year(naming_series_options, posting_date, is_return=is_ret)
+			if chosen_series:
+				doc.naming_series = chosen_series
 			doc.currency = currency
 			doc.update_stock = 1 if update_stock else 0
 			doc.set(ref_field, inv_no)
