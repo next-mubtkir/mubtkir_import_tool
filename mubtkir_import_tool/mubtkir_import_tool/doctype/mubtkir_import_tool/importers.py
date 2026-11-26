@@ -14,6 +14,22 @@ from .daftra_parser import (
 )
 
 
+def _resolve_default_link(
+	doctype: str,
+	settings_doctype: str,
+	settings_field: str,
+	candidates: tuple[str, ...] = (),
+) -> str | None:
+	"""Safely resolve a default Link value (works on both Arabic and English ERPNext sites)."""
+	val = frappe.db.get_single_value(settings_doctype, settings_field)
+	if val and frappe.db.exists(doctype, val):
+		return val
+	for name in candidates:
+		if frappe.db.exists(doctype, name):
+			return name
+	return frappe.db.get_value(doctype, {}, "name")
+
+
 def _get_default_company(company: str | None = None) -> str:
 	if company:
 		return company
@@ -124,10 +140,14 @@ def _get_tax_template_rows(template_doctype: str, template_name: str) -> list[di
 
 def import_items(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, item_group: str | None = None, progress_cb=None) -> dict:
 	"""Import Daftra Products CSV/ZIP into ERPNext Item DocType."""
-	_, rows, _, _ = load_daftra_source("Item", main_file_path, child_file_path)
+	_mh, rows, _ch, _cr = load_daftra_source("Item", main_file_path, child_file_path)
 	existing_codes = set(frappe.get_all("Item", pluck="name"))
-	default_group = item_group or frappe.db.get_single_value("Stock Settings", "item_group") or "All Item Groups"
-	default_uom = frappe.db.get_single_value("Stock Settings", "stock_uom") or "Nos"
+	default_group = item_group or _resolve_default_link(
+		"Item Group", "Stock Settings", "item_group", ("All Item Groups", "جميع مجموعات الأصناف", "Products", "المنتجات")
+	)
+	default_uom = _resolve_default_link(
+		"UOM", "Stock Settings", "stock_uom", ("Nos", "وحدة", "Unit", "Piece")
+	)
 
 	imported = 0
 	skipped = 0
@@ -206,11 +226,15 @@ def import_items(main_file_path: str, child_file_path: str | None = None, skip_e
 
 def import_customers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, customer_group: str | None = None, progress_cb=None) -> dict:
 	"""Import Daftra Clients (+ Client_contacts) into ERPNext Customer DocType."""
-	_, rows, _, contact_rows = load_daftra_source("Customer", main_file_path, child_file_path)
+	_mh, rows, _ch, contact_rows = load_daftra_source("Customer", main_file_path, child_file_path)
 	contacts_by_no = {c.get("ClientNumber", ""): c for c in contact_rows if c.get("ClientNumber")}
 	existing_names = set(frappe.get_all("Customer", pluck="name"))
-	default_group = customer_group or frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
-	default_territory = frappe.db.get_single_value("Selling Settings", "territory") or "All Territories"
+	default_group = customer_group or _resolve_default_link(
+		"Customer Group", "Selling Settings", "customer_group", ("All Customer Groups", "جميع مجموعات العملاء", "Commercial", "تجاري")
+	)
+	default_territory = _resolve_default_link(
+		"Territory", "Selling Settings", "territory", ("All Territories", "جميع المناطق", "Saudi Arabia", "المملكة العربية السعودية")
+	)
 
 	imported = 0
 	skipped = 0
@@ -285,10 +309,12 @@ def import_customers(main_file_path: str, child_file_path: str | None = None, sk
 
 def import_suppliers(main_file_path: str, child_file_path: str | None = None, skip_existing: bool = True, supplier_group: str | None = None, progress_cb=None) -> dict:
 	"""Import Daftra Suppliers (+ Supplier_contacts) into ERPNext Supplier DocType."""
-	_, rows, _, contact_rows = load_daftra_source("Supplier", main_file_path, child_file_path)
+	_mh, rows, _ch, contact_rows = load_daftra_source("Supplier", main_file_path, child_file_path)
 	contacts_by_no = {c.get("supplier_number", ""): c for c in contact_rows if c.get("supplier_number")}
 	existing_names = set(frappe.get_all("Supplier", pluck="name"))
-	default_group = supplier_group or frappe.db.get_single_value("Buying Settings", "supplier_group") or "All Supplier Groups"
+	default_group = supplier_group or _resolve_default_link(
+		"Supplier Group", "Buying Settings", "supplier_group", ("All Supplier Groups", "جميع مجموعات الموردين")
+	)
 
 	imported = 0
 	skipped = 0
@@ -385,12 +411,18 @@ def _ensure_party(
 	if party_type == "Customer":
 		doc.customer_name = party_name[:140]
 		doc.customer_type = "Company"
-		doc.customer_group = party_group or frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
-		doc.territory = frappe.db.get_single_value("Selling Settings", "territory") or "All Territories"
+		doc.customer_group = party_group or _resolve_default_link(
+			"Customer Group", "Selling Settings", "customer_group", ("All Customer Groups", "جميع مجموعات العملاء", "Commercial", "تجاري")
+		)
+		doc.territory = _resolve_default_link(
+			"Territory", "Selling Settings", "territory", ("All Territories", "جميع المناطق", "Saudi Arabia", "المملكة العربية السعودية")
+		)
 	else:
 		doc.supplier_name = party_name[:140]
 		doc.supplier_type = "Company"
-		doc.supplier_group = party_group or frappe.db.get_single_value("Buying Settings", "supplier_group") or "All Supplier Groups"
+		doc.supplier_group = party_group or _resolve_default_link(
+			"Supplier Group", "Buying Settings", "supplier_group", ("All Supplier Groups", "جميع مجموعات الموردين")
+		)
 		country = _get_country_name(country_code)
 		if country:
 			doc.country = country
@@ -438,7 +470,7 @@ def import_invoices(
 		raise ValueError(_("Invalid invoice stage: {0}").format(stage))
 
 	company = _get_default_company(company)
-	main_headers, main_rows, _, child_rows = load_daftra_source(stage, main_file_path, child_file_path)
+	main_headers, main_rows, _ch, child_rows = load_daftra_source(stage, main_file_path, child_file_path)
 	no_col, party_col = _resolve_invoice_columns(stage, main_headers)
 
 	items_by_no: dict[str, list[dict[str, str]]] = {}
@@ -472,9 +504,13 @@ def import_invoices(
 
 	existing_parties = set(frappe.get_all(party_type, pluck="name"))
 	item_lookup = _build_item_lookup()
-	default_item_group = default_item_group or frappe.db.get_single_value("Stock Settings", "item_group") or "All Item Groups"
+	default_item_group = default_item_group or _resolve_default_link(
+		"Item Group", "Stock Settings", "item_group", ("All Item Groups", "جميع مجموعات الأصناف", "Products", "المنتجات")
+	)
 	party_group = default_customer_group if party_type == "Customer" else default_supplier_group
-	default_uom = frappe.db.get_single_value("Stock Settings", "stock_uom") or "Nos"
+	default_uom = _resolve_default_link(
+		"UOM", "Stock Settings", "stock_uom", ("Nos", "وحدة", "Unit", "Piece")
+	)
 	template_rows = _get_tax_template_rows(template_doctype, tax_template or "")
 	invoice_years = {
 		d[:4]
