@@ -445,6 +445,21 @@ def import_invoices(
 			if has_daftra_col:
 				doc.custom_daftra_no = inv_no
 
+			notes = (inv_row.get("Notes") or "").strip()
+			if notes:
+				doc.terms = notes
+
+			# Auto-populate any matching custom fields created on the target DocType
+			for col_name, col_val in inv_row.items():
+				if not col_val or not col_name:
+					continue
+				slug = col_name.strip().lower().replace(" ", "_")
+				for candidate in (f"custom_{slug}", col_name, slug):
+					df = doc.meta.get_field(candidate)
+					if df and getattr(df, "is_custom_field", 0) and not doc.get(candidate):
+						doc.set(candidate, col_val)
+						break
+
 			if is_ret:
 				doc.is_return = 1
 				orig_ref = (

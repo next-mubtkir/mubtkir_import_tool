@@ -177,6 +177,7 @@ def _normalize_arabic_flat_returns(
 			"CurrencyCode": currency,
 			"SummaryTotal": str(summary_total),
 			"SummaryDiscount": str(summary_discount),
+			"Notes": first.get("ملاحظات") or "",
 			"Type": "Return",
 		})
 
