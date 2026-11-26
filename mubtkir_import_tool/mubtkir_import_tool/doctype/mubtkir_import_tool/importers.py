@@ -65,12 +65,11 @@ def _get_naming_series_options(target_doctype: str) -> list[str]:
 
 def _ensure_year_naming_series(target_doctype: str, years: set[str], is_return: bool = False) -> list[str]:
 	"""
-	Ensure year-based naming_series options exist on target_doctype automatically
-	so multi-year imports never require manual naming_series setup.
+	Ensure explicit year-based naming_series options (e.g. ACC-PINV-.2025.-) exist on target_doctype.
+	Note: ERPNext's .YYYY. token uses current system year (2026), not posting_date, so explicit year
+	series are required for historical invoices.
 	"""
 	options = _get_naming_series_options(target_doctype)
-	if any(".YYYY." in opt for opt in options):
-		return options
 
 	prefix = "ACC-SINV" if target_doctype == "Sales Invoice" else "ACC-PINV"
 	if is_return:
@@ -110,24 +109,22 @@ def _ensure_year_naming_series(target_doctype: str, years: set[str], is_return: 
 
 
 def _pick_naming_series_by_year(options: list[str], posting_date: str, is_return: bool = False) -> str | None:
-	"""Pick a configured naming_series matching the invoice's posting_date year (e.g. 2025 vs 2026)."""
+	"""Pick an explicit year naming_series matching the invoice's posting_date year (e.g. 2025 vs 2026)."""
 	if not options or not posting_date or len(posting_date) < 4:
 		return None
 	year = posting_date[:4]
 	year_matches = [opt for opt in options if year in opt]
-	if year_matches:
-		if is_return:
-			ret_matches = [opt for opt in year_matches if any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
-			if ret_matches:
-				return ret_matches[0]
-		else:
-			non_ret = [opt for opt in year_matches if not any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
-			if non_ret:
-				return non_ret[0]
-		return year_matches[0]
-	# Fallback to dynamic .YYYY. series if configured
-	yyyy_matches = [opt for opt in options if ".YYYY." in opt]
-	return yyyy_matches[0] if yyyy_matches else None
+	if not year_matches:
+		return None
+	if is_return:
+		ret_matches = [opt for opt in year_matches if any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
+		if ret_matches:
+			return ret_matches[0]
+	else:
+		non_ret = [opt for opt in year_matches if not any(k in opt.upper() for k in ("RET", "CR", "DR", "CN", "DN"))]
+		if non_ret:
+			return non_ret[0]
+	return year_matches[0]
 
 
 def _ensure_fiscal_years(company: str, years: set[str]):
@@ -627,6 +624,7 @@ def import_invoices(
 			if chosen_series:
 				doc.naming_series = chosen_series
 			doc.currency = currency
+			doc.disable_rounded_total = 1
 			doc.update_stock = 1 if update_stock else 0
 			doc.set(ref_field, inv_no)
 
