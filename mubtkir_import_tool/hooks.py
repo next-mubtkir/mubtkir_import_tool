@@ -140,13 +140,11 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Sales Invoice": {
+		"validate": "mubtkir_import_tool.utils.clamp_negative_incoming_rate",
+	}
+}
 
 # Scheduled Tasks
 # ---------------
