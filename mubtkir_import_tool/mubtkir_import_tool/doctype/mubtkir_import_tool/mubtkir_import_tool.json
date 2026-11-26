@@ -168,7 +168,7 @@
    "label": "Skip Existing Records"
   },
   {
-   "default": "1",
+   "default": "0",
    "description": "Stop before moving to the next stage if any record fails in the current stage.",
    "fieldname": "stop_on_stage_error",
    "fieldtype": "Check",

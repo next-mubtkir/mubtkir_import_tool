@@ -41,34 +41,26 @@ function run_validate(frm) {
 	});
 }
 
-function run_start_import(frm, target_stage = null) {
-	const do_start = () => {
-		frappe.call({
-			method: "start_import",
-			doc: frm.doc,
-			args: target_stage ? { target_stage } : {},
-			freeze: true,
-			freeze_message: __("Enqueueing background import job..."),
-			callback() {
-				frm.reload_doc();
-				frappe.show_alert({
-					message: __("Import started in the background; progress will update automatically."),
-					indicator: "blue",
-				});
-			},
-		});
-	};
-
-	if (target_stage) {
-		do_start();
-		return;
-	}
-
+function run_start_import(frm) {
 	frappe.confirm(
 		__(
 			"Have you taken a site backup before starting the import? Invoices will be saved and submitted automatically according to your settings."
 		),
-		do_start
+		() => {
+			frappe.call({
+				method: "start_import",
+				doc: frm.doc,
+				freeze: true,
+				freeze_message: __("Enqueueing background import job..."),
+				callback() {
+					frm.reload_doc();
+					frappe.show_alert({
+						message: __("Import started in the background; progress will update automatically."),
+						indicator: "blue",
+					});
+				},
+			});
+		}
 	);
 }
 
@@ -121,6 +113,10 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 			if (!data || data.docname !== frm.doc.name) return;
 			if (data.done) {
 				frm.dashboard.hide_progress();
+				frm.reload_doc();
+				return;
+			}
+			if (data.stage_done) {
 				frm.reload_doc();
 				return;
 			}
@@ -195,21 +191,6 @@ frappe.ui.form.on("Mubtkir Import Tool", {
 		if (!frm.is_new() && !is_importing) {
 			frm.add_custom_button(__("Validate Data"), () => run_validate(frm));
 			frm.add_custom_button(__("Start Import"), () => run_start_import(frm)).addClass("btn-primary");
-
-			if (frm.doc.import_mode === "Full Migration") {
-				const stage_buttons = [
-					["Item", __("1. Import Products")],
-					["Customer", __("2. Import Customers")],
-					["Supplier", __("3. Import Suppliers")],
-					["Purchase Invoice", __("4. Import Purchase Invoices")],
-					["Purchase Return", __("4c. Import Purchase Returns")],
-					["Sales Invoice", __("5. Import Sales Invoices")],
-					["Sales Return", __("5c. Import Sales Returns")],
-				];
-				stage_buttons.forEach(([stage_key, label]) => {
-					frm.add_custom_button(label, () => run_start_import(frm, stage_key), __("Run Stage"));
-				});
-			}
 		} else if (!frm.is_new() && is_importing) {
 			frm.add_custom_button(__("Stop Import"), () => run_stop_import(frm)).addClass("btn-danger");
 		}

@@ -130,19 +130,14 @@ class MubtkirImportTool(Document):
 		}
 
 	@frappe.whitelist()
-	def start_import(self, target_stage: str | None = None):
-		"""Enqueue the import job (all configured stages, or a single target_stage) in the background long queue."""
+	def start_import(self):
+		"""Enqueue the import job in the background long queue."""
 		if not self.has_permission("write"):
 			frappe.throw(_("Not permitted to start import."), frappe.PermissionError)
 		if self.status == "Importing":
 			frappe.throw(_("Import is already running in the background."))
 
 		stages = self._get_configured_stages()
-		if target_stage:
-			stages = [s for s in stages if s[0] == target_stage]
-			if not stages:
-				frappe.throw(_("No file attached for stage: {0}").format(_(target_stage)))
-
 		stage_names = {s[0] for s in stages}
 		if ({"Sales Invoice", "Sales Return"} & stage_names) and not self.sales_taxes_and_charges_template:
 			frappe.throw(_("Please select a Sales Taxes and Charges Template before importing Sales Invoices."))
@@ -150,20 +145,19 @@ class MubtkirImportTool(Document):
 			frappe.throw(_("Please select a Purchase Taxes and Charges Template before importing Purchase Invoices."))
 
 		self.status = "Importing"
-		if not target_stage:
-			self.imported_records = 0
-			self.skipped_records = 0
-			self.failed_records = 0
-			for f in (
-				"items_result",
-				"customers_result",
-				"suppliers_result",
-				"purchase_result",
-				"purchase_returns_result",
-				"sales_result",
-				"sales_returns_result",
-			):
-				self.set(f, "")
+		self.imported_records = 0
+		self.skipped_records = 0
+		self.failed_records = 0
+		for f in (
+			"items_result",
+			"customers_result",
+			"suppliers_result",
+			"purchase_result",
+			"purchase_returns_result",
+			"sales_result",
+			"sales_returns_result",
+		):
+			self.set(f, "")
 		self.set("import_logs", [])
 		self.save()
 		frappe.cache().delete_value(f"mubtkir_import_stop_{self.name}")
@@ -177,7 +171,6 @@ class MubtkirImportTool(Document):
 			enqueue_after_commit=True,
 			job_id=f"mubtkir_import_{self.name}",
 			deduplicate=True,
-			target_stage=target_stage,
 		)
 		return {"status": "Importing", "message": _("Import job enqueued.")}
 
@@ -191,7 +184,7 @@ class MubtkirImportTool(Document):
 		self.save()
 		return {"status": self.status, "message": _("Stop signal sent to import job.")}
 
-	def run_import_job(self, target_stage: str | None = None):
+	def run_import_job(self):
 		"""Background worker method executing stages in strict dependency order."""
 		prev_in_import = getattr(frappe.flags, "in_import", False)
 		prev_mute_emails = getattr(frappe.flags, "mute_emails", False)
@@ -210,8 +203,6 @@ class MubtkirImportTool(Document):
 
 		try:
 			stages = self._get_configured_stages()
-			if target_stage:
-				stages = [s for s in stages if s[0] == target_stage]
 
 			total_imported = 0
 			total_skipped = 0
@@ -332,7 +323,14 @@ class MubtkirImportTool(Document):
 				self.save(ignore_permissions=True)
 				frappe.db.commit()
 
-				if should_stop() or (self.stop_on_stage_error and res["failed"] > 0 and not target_stage):
+				# Notify UI immediately so the user sees stage results & errors live while next stage runs
+				frappe.publish_realtime(
+					"mubtkir_import_progress",
+					{"docname": self.name, "stage_done": True},
+					user=self.modified_by,
+				)
+
+				if should_stop() or (self.stop_on_stage_error and res["failed"] > 0):
 					stopped_early = True
 					break
 
