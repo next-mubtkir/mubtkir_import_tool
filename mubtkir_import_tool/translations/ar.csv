@@ -165,3 +165,4 @@ Not permitted to stop import.,لا تملك صلاحية إيقاف الاستي
 Stop signal sent to import job.,تم إرسال أمر إيقاف مهمة الاستيراد.
 Please save the document first to enable Validate and Start Import buttons.,يرجى حفظ المستند أولاً لتفعيل أزرار الفحص وبدء الاستيراد.
 Are you sure you want to stop the running import?,هل أنت متأكد من إيقاف عملية الاستيراد الجارية؟
+{0} (Occurred {1} times),{0} (تكرر {1} مرة)

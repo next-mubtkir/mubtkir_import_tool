@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import os
+import re
 
 import frappe
 from frappe import _
@@ -77,10 +78,25 @@ class MubtkirImportTool(Document):
 		return stages
 
 	def _append_logs(self, logs: list[dict]):
+		"""Group duplicate error patterns so each unique error appears once with its occurrence count."""
+		grouped: dict[tuple[str, str, str], dict] = {}
 		for entry in logs:
+			msg = str(entry.get("message") or "")
+			# Normalize numbers/invoice refs to group identical error types together
+			pattern = re.sub(r"\d+(?:\.\d+)?", "#", msg)
+			key = (str(entry.get("stage") or ""), str(entry.get("severity") or ""), pattern)
+			if key not in grouped:
+				grouped[key] = {"entry": dict(entry), "count": 1}
+			else:
+				grouped[key]["count"] += 1
+
+		for item in grouped.values():
 			if len(self.import_logs or []) >= MAX_LOG_ROWS:
 				break
-			self.append("import_logs", entry)
+			row = item["entry"]
+			if item["count"] > 1:
+				row["message"] = _("{0} (Occurred {1} times)").format(row["message"], item["count"])
+			self.append("import_logs", row)
 
 	@frappe.whitelist()
 	def validate_files(self):

@@ -713,15 +713,26 @@ def import_invoices(
 					"qty": -qty if is_ret else qty,
 					"net_rate": net_rate,
 					"inc_rate": inc_rate,
+					"sub_nt": flt(sub_nt, 2),
+					"sub": flt(sub, 2),
 				})
 
 			total_daftra_tax = flt(total_daftra_tax, 2)
+			# Pick inclusive vs net print rate based on which representation avoids 2-decimal rate rounding drift
+			net_exact_at_2dp = all(
+				abs(flt(round(p["net_rate"], 2) * abs(p["qty"]), 2) - p["sub_nt"]) <= 0.01
+				for p in prepared_items
+			)
+			inc_exact_at_2dp = all(
+				abs(flt(round(p["inc_rate"], 2) * abs(p["qty"]), 2) - p["sub"]) <= 0.01
+				for p in prepared_items
+			)
 			use_inclusive_print_rate = (
 				total_daftra_tax > 0
-				and row_inclusive_flags == {True}
 				and len(row_tax_rates) == 1
 				and len(template_rows) == 1
 				and abs(flt(template_rows[0]["rate"], 4) - next(iter(row_tax_rates))) < 0.01
+				and (inc_exact_at_2dp and not net_exact_at_2dp or (row_inclusive_flags == {True} and inc_exact_at_2dp))
 			)
 
 			intended_rates: list[float] = []
